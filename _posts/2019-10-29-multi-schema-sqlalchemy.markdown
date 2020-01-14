@@ -44,7 +44,7 @@ import sqlalchemy as sa
 
 We are now ready to establish a connection to our database through the use of [Sessions][sessions]. I will not go into details about SqlAlchemy's connection API, as there are a lot of good resources out there about these concepts.
 
-#### dynamically query tables with the same name in different schemas
+#### Dynamically query tables with the same name in different schemas
 
 
 

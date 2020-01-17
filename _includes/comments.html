@@ -40,7 +40,7 @@
 
         <form id="comment-form" class="post-new-comment" method="post" action="{{ .Site.Params.staticman.endpoint }}/{{ .Site.Params.staticman.username }}/{{ .Site.Params.staticman.repository }}/{{ .Site.Params.staticman.branch }}/comments">
             {{ if eq ($.Scratch.Get "hasComments") 0 }}
-                <p>Be the first to leave a comment! 🎉</p>
+                <p>Be the first to leave a comment!</p>
             {{ end }}
             <h3 class="prompt">Say something</h3>
             <input type="hidden" name="options[redirect]" value="{{ .Permalink }}#comment-submitted">

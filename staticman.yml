@@ -6,17 +6,17 @@ comments:
     - website
     - comment
     - reply_to
-  branch: gh-pages
+  branch: "gh-pages"
   commitMessage: "New comment in {options.slug}"
   filename: "comment-{@timestamp}"
-  format: yaml
+  format: "yaml"
   generatedFields: 
     date: 
       options: 
         format: iso8601
-      type: date
-  moderation: false
-  path: "data/comments/{options.slug}"
+      type: "date"
+  moderation: true
+  path: "_data/comments/{options.slug}"
   requiredFields: 
     - name
     - email

@@ -22,8 +22,8 @@ layout: default
   {%- if site.disqus.shortname -%}
     {%- include disqus_comments.html -%}
   {%- endif -%}
-    
-  {% include comments.html %}
+
+  {% include staticman-comments.html %}
 
   <a class="u-url" href="{{ page.url | relative_url }}" hidden></a>
 </article>

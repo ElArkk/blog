@@ -32,7 +32,7 @@ staticman:
   username       : "ElArkk"
   repository     : "blog" 
   branch         : "gh-pages" # "master"
-  endpoint       : "https://staticman-elarkk.herokuapp.com/v3/entry/"
+  endpoint       : "https://staticman-elarkk.herokuapp.com/v3/entry/github/"
 
 
 # Build settings

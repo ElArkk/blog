@@ -12,12 +12,13 @@ layout: null
 
     {% assign sm = site.staticman -%}
     var endpoint = '{{ sm.endpoint | default: "https://staticman-elarkk.herokuapp.com/v3/entry/github/" }}';
+    var username = '{{ sm.username}}'
     var repository = '{{ sm.repository }}';
     var branch = '{{ sm.branch }}';
 
     $.ajax({
       type: $(this).attr('method'),
-      url: endpoint + repository + '/' + branch + '/comments',
+      url: endpoint + username + '/' + repository + '/' + branch + '/comments',
       data: $(this).serialize(),
       contentType: 'application/x-www-form-urlencoded',
       success: function (data) {

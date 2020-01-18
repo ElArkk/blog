@@ -10,7 +10,7 @@ layout: null
 
     $(form).addClass('disabled');
 
-    {% assign sm = site.staticman -%}
+    {% assign sm = site.staticman %}
     var endpoint = '{{ sm.endpoint | default: "https://staticman-elarkk.herokuapp.com/v3/entry/github/" }}';
     var username = '{{ sm.username}}'
     var repository = '{{ sm.repository }}';

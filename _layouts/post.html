@@ -23,7 +23,9 @@ layout: default
     {%- include disqus_comments.html -%}
   {%- endif -%}
 
-  {% include staticman-comments.html %}
+  <!-- {% include staticman-comments.html %} -->
+  {% include comments-new.html %}
+  {% include comments.html %}
 
   <a class="u-url" href="{{ page.url | relative_url }}" hidden></a>
 </article>

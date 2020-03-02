@@ -129,7 +129,7 @@ from sqlalchemy.orm import sessionmaker
 
 from db.asia import Countries
 
-engine = create_engine("postgres+psycopg2://admin:password@host:5432/worlddb)
+engine = create_engine("postgres+psycopg2://admin:password@host:5432/worlddb")
 Session = sessionmaker(bind=engine)
 session = Session()
 
@@ -164,7 +164,7 @@ from sqlalchemy.orm import sessionmaker
 
 from importlib import import_module
 
-engine = create_engine("postgres+psycopg2://admin:password@host:5432/worlddb)
+engine = create_engine("postgres+psycopg2://admin:password@host:5432/worlddb")
 Session = sessionmaker(bind=engine)
 session = Session()
 

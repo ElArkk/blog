@@ -349,8 +349,9 @@ using `sqlachemy`, and can even perform migrations on a per-schema basis!
 If you have any suggestions of how to solve this in a different way or more
 elegantly, please let me know in the comments!
 
+<!-- prettier-ignore-start -->
 [sqlalchemy]: https://www.sqlalchemy.org/
 [orm]: https://docs.sqlalchemy.org/en/14/orm/tutorial.html
-[sessions]:
-	https://docs.sqlalchemy.org/en/14/orm/session_basics.html?highlight=sessions
+[sessions]: https://docs.sqlalchemy.org/en/14/orm/session_basics.html?highlight=sessions)
 [almbc]: https://alembic.sqlalchemy.org/en/latest/
+<!-- prettier-ignore-end -->

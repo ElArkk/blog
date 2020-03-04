@@ -6,3 +6,4 @@ vendor
 
 # custom
 .vscode
+node_modules

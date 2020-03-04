@@ -312,11 +312,11 @@ def run_migrations_online():
 ```
 
 That's it! We are now ready to generate our first revision for the `asia`
-schema. Navigate to the `alembic` folder in the console, and start the revision:
+schema:
 
 ```bash
 
-$ cd projects/worlddb/alembic
+$ cd projects/worlddb/migrations
 $ alembic -c asia_alembic.ini revision --autogenerate -m 'my first revision'
 
 ```

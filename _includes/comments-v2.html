@@ -8,7 +8,7 @@
 		type="hidden"
 		value="https://elarkk.github.io/blog/"
 	/>
-	<input name="options[slug]" type="hidden" value="{{ page.slug }}" />
+	<!-- <input name="options[slug]" type="hidden" value="{{ page.slug }}" /> -->
 	<label>Name</label>
 	<input name="fields[name]" type="text" />
 	<label>E-mail (optional)</label>
@@ -27,7 +27,7 @@
 	site.data.comments[page.slug] | size }} {% endif %} Comments:
 </h3>
 {% assign comments = site.data.comments[page.slug] | sort %} {% for comment in
-comments %}
+comments reversed%}
 <label>
 	{% if comment[1].url %}
 	<a href="{{ comment[1].url }}">

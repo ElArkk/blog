@@ -3,7 +3,11 @@
 	method="POST"
 	action="https://staticman-elarkk.herokuapp.com/v2/entry/ElArkk/blog/gh-pages/comments"
 >
-	<input name="options[redirect]" type="hidden" value="https://example.com" />
+	<input
+		name="options[redirect]"
+		type="hidden"
+		value="https://ElArkk.github.io/blog/[page.slug]"
+	/>
 	<input name="options[slug]" type="hidden" value="{{ page.slug }}" />
 	<label>Name</label>
 	<input name="fields[name]" type="text" />

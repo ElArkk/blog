@@ -344,7 +344,7 @@ $ alembic -c asia_alembic.ini ugrade <version identifier>
 Downgrades work analogous through the `downgrade` command.
 
 We're done! We now have a way of dynamically querying our multi-schema database
-using `sqlachemy`, and can even perform migrations on a per-schema basis!
+using `Sqlalchemy`, and can even perform migrations on a per-schema basis!
 
 If you have any suggestions of how to solve this in a different way or more
 elegantly, please let me know in the comments!

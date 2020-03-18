@@ -4,14 +4,17 @@ title: About
 permalink: /about/
 ---
 
-This is the base Jekyll theme. You can find out more info about customizing your
-Jekyll theme, as well as basic Jekyll usage documentation at
-[jekyllrb.com](https://jekyllrb.com/)
+### Welcome to my blog!
 
-You can find the source code for Minima at GitHub: [jekyll][jekyll-organization]
-/ [minima](https://github.com/jekyll/minima)
+This blog is based on [Jekyll][jekyll-organization] and hosted through GitHub
+pages. You can find the source code [here][blog]. The commenting system is based
+on [Staticman][staticman], see my post about it [here][staticmanpost].
 
-You can find the source code for Jekyll at GitHub: [jekyll][jekyll-organization]
-/ [jekyll](https://github.com/jekyll/jekyll)
+The blog is very much a work in progress!
 
+<!-- prettier-ignore-start -->
 [jekyll-organization]: https://github.com/jekyll
+[blog]: https://github.com/ElArkk/blog
+[staticman]: https://github.com/eduardoboucas/staticman
+[staticmanpost]: https://elarkk.github.io/blog/python,/node.js,/heroku/2020/03/18/staticman-setup.html
+<!-- prettier-ignore-end -->

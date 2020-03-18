@@ -26,13 +26,6 @@ baseurl: "/blog" # the subpath of your site, e.g. /blog
 url: "https://elarkk.github.io" # the base hostname & protocol for your site, e.g. http://example.com
 twitter_username: ElArkkk
 github_username: ElArkk
-# comments:
-#   provider       : "staticman" # false (default), "staticman", "custom"
-# staticman:
-#   username       : "ElArkk"
-#   repository     : "blog"
-#   branch         : "gh-pages" # "master"
-#   endpoint       : "https://staticman-elarkk.herokuapp.com/v3/entry/github/"
 
 # Build settings
 theme: minima

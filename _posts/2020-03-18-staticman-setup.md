@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Setting up Staticman for static comments"
-date: 2019-10-29 22:13:11 +0100
+date: 2020-03-18
 categories: Python, Node.js, Heroku
 ---
 
@@ -11,10 +11,10 @@ Yesterday, I _finally_ got comments to work on this blog using
 as a file to the dedicated spot in your blog repository on GitHub (or GitLab).
 If you turn on moderation, it will create a pull request instead. To do this, it
 of course needs push rights to your repo, and setting up everything correctly,
-including running your own instance of staticman, turned out to be a bit more
-difficult than it seemed.
+including running your own instance of Staticman, turned out to be a bit more
+difficult than it initially seemed.
 
-It begins with choosing which endpoint of staticman you want to use. `v1`
+First, you need to choose which endpoint of staticman you want to use. `v1`
 (deprecated), `v2` or `v3`. For quite a while I was trying to use the newest
 (`v3`) endpoint of Staticman, with no success. Turns out, that `v3` does not
 support authentication through Personal Accesss Tokens anymore, but only through

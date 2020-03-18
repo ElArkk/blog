@@ -346,8 +346,7 @@ Downgrades work analogous through the `downgrade` command.
 We're done! We now have a way of dynamically querying our multi-schema database
 using `Sqlalchemy`, and can even perform migrations on a per-schema basis!
 
-If you have any suggestions of how to solve this in a different way or more
-elegantly, please let me know in the comments!
+If you have any questions or suggestions, please let me know in the comments!
 
 <!-- prettier-ignore-start -->
 [sqlalchemy]: https://www.sqlalchemy.org/

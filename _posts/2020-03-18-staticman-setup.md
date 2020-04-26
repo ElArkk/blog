@@ -2,6 +2,7 @@
 layout: post
 title: "Setting up Staticman for self-hosted comments"
 date: 2020-03-18
+permalink: /staticman-setup
 categories:
     - "webdev"
     - "python"

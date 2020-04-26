@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Multi-schema Postgres database handling through SQLAlchemy"
-date: 2019-10-29 22:13:11 +0100
+date: 2020-01-20
 permalink: /multi-schema-sqlalchemy
 categories:
     - "database"

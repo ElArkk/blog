@@ -12,6 +12,16 @@ layout: default
 				{%- assign date_format = site.minima.date_format | default: "%b
 				%-d, %Y" -%} {{ page.date | date: date_format }}
 			</time>
+
+			<div class="tags">
+				{% assign Categories = page.categories %}
+				{% for category in Categories %}
+				<span class="tag">
+					<a href="/blog/category/{{ category }}">#{{ category }}</a>
+				</span>
+				{% endfor %}
+			</div>
+
 			{%- if page.author -%} •
 			<span itemprop="author" itemscope itemtype="http://schema.org/Person"><span class="p-author h-card"
 					itemprop="name">{{ page.author }}</span></span>
@@ -21,6 +31,42 @@ layout: default
 
 	<div class="post-content e-content" itemprop="articleBody">
 		{{ content }}
+	</div>
+
+	<div class="relatedPosts">
+
+		{% assign maxRelated = 3 %}
+		{% assign minCommonTags =  2 %}
+		{% assign maxRelatedCounter = 0 %}
+
+		{% for post in site.posts %}
+
+		{% assign sameTagCount = 0 %}
+		{% assign commonTags = '' %}
+
+		{% for category in post.categories %}
+		{% if post.url != page.url %}
+		{% if page.categories contains category %}
+		{% assign sameTagCount = sameTagCount | plus: 1 %}
+		{% capture tagmarkup %} <span class="label label-default">#{{ category }} </span> {% endcapture %}
+		{% assign commonTags = commonTags | append: tagmarkup %}
+		{% endif %}
+		{% endif %}
+		{% endfor %}
+
+		{% if sameTagCount >= minCommonTags %}
+		<h4>Related Posts</h4>
+		<div>
+			<h5><a href="{{ site.baseurl }}{{ post.url }}">{{ post.title }}</a> {{ commonTags }}</h5>
+		</div>
+		{% assign maxRelatedCounter = maxRelatedCounter | plus: 1 %}
+		{% if maxRelatedCounter >= maxRelated %}
+		{% break %}
+		{% endif %}
+		{% endif %}
+
+		{% endfor %}
+
 	</div>
 
 	{% include comments-v2.html %}

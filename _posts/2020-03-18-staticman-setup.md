@@ -1,8 +1,16 @@
 ---
 layout: post
-title: "Setting up Staticman for static comments"
+title: "Setting up Staticman for self-hosted comments"
 date: 2020-03-18
-categories: Python, Node.js, Heroku
+categories:
+    - "webdev"
+    - "python"
+    - "nodejs"
+    - "heroku"
+excerpt:
+    "I finally got Staticman to work, a very cool self-hosted commenting tool
+    for static sites. I now have full control over the commenting function on my
+    blog, and no registration to any provider is needed to post comments."
 ---
 
 Yesterday, I _finally_ got comments to work on this blog using

@@ -13,19 +13,19 @@ layout: default
 				%-d, %Y" -%} {{ page.date | date: date_format }}
 			</time>
 
-			<div class="tags">
-				{% assign Categories = page.categories %}
-				{% for category in Categories %}
-				<span class="tag">
-					<a href="/blog/category/{{ category }}">#{{ category }}</a>
-				</span>
-				{% endfor %}
-			</div>
+		<div class="tags">
+			{% assign Categories = page.categories %}
+			{% for category in Categories %}
+			<span class="tag">
+				<a href="/blog/category/{{ category }}">#{{ category }}</a>
+			</span>
+			{% endfor %}
+		</div>
 
-			{%- if page.author -%} •
-			<span itemprop="author" itemscope itemtype="http://schema.org/Person"><span class="p-author h-card"
-					itemprop="name">{{ page.author }}</span></span>
-			{%- endif -%}
+		{%- if page.author -%} •
+		<span itemprop="author" itemscope itemtype="http://schema.org/Person"><span class="p-author h-card"
+				itemprop="name">{{ page.author }}</span></span>
+		{%- endif -%}
 		</p>
 	</header>
 
@@ -33,6 +33,10 @@ layout: default
 		{{ content }}
 	</div>
 
+	<div class="likebtn">
+		{% include likebtn.html %}
+		<p></p>
+	</div>
 	<div class="relatedPosts">
 
 		{% assign maxRelated = 3 %}

@@ -12,7 +12,7 @@ on [Staticman][staticman], see my post about it [here][staticmanpost].
 
 The blog is very much a work in progress!
 
-[PROBPROG2020 poster]({{site.baseurl}}/assets/probprog2020poster.pdf)
+<!-- [PROBPROG2020 poster]({{site.baseurl}}/assets/probprog2020poster.pdf) -->
 
 <!-- prettier-ignore-start -->
 [jekyll-organization]: https://github.com/jekyll

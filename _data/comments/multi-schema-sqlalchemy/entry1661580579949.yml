@@ -1,0 +1,6 @@
+_id: d5bd3130-25ce-11ed-aa42-efd69b400e70
+name: Sergio
+email: daa77f2702c6e26504956bcbd5e3783d
+url: ''
+message: "Hi Friend, I was implementing your solution but I get the following error in the alembic migration:\r\n\r\n  File \"/usr/local/lib/python3.7/site-packages/sqlalchemy/sql/schema.py\", line 2338, in _get_colspec\r\n    self._table_column.table.fullname,\r\nAttributeError: 'NoneType' object has no attribute 'fullname'\r\n\r\nDuring a workarround I found that its related to __abstract__ = True parameter. Do you solv that error in your solution?\r\n\r\nThanks in advance."
+date: 1661580579

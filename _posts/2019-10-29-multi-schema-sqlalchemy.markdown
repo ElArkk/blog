@@ -4,16 +4,16 @@ title: "Multi-schema Postgres database handling through SQLAlchemy"
 date: 2020-01-20
 permalink: /multi-schema-sqlalchemy
 categories:
-    - "database"
-    - "postgres"
-    - "python"
-    - "sqlalchemy"
+  - "database"
+  - "postgres"
+  - "python"
+  - "sqlalchemy"
 excerpt:
-    "SQLAlchemy is a very mature database toolkit for Python. I am working on a
-    project which uses a postgres database consisting of multiple
-    inter-dependant schemas. I will go through how to reflect such a database
-    using Sqlalchemy's ORM, and how to create migrations on a per-schema basis
-    using alembic."
+  "SQLAlchemy is a very mature database toolkit for Python. I am working on a
+  project which uses a postgres database consisting of multiple
+  inter-dependant schemas. I will go through how to reflect such a database
+  using Sqlalchemy's ORM, and how to create migrations on a per-schema basis
+  using alembic."
 ---
 
 <!-- ![]({{site.baseurl}}/assets/img/chongching_bridge.png){:class="img-centered":height="200px"
@@ -26,10 +26,10 @@ I wanted to faithfully reflect a database with multiple schemas. Specifically, I
 had a Postgres database containing multiple schemas, which had in part tables
 with the same name. In the following I will go through the steps to
 
--   [represent a multischema Postgres db through use of the SQLAlchemy ORM](#represent-a-multischema-postgres-db-through-use-of-the-sqlalchemy-orm),
--   [dynamically query tables with the same name in different schemas](#dynamically-query-tables-with-the-same-name-in-different-schemas),
-    and finally,
--   [implement the db migration tool alembic in a way that allows generating migrations on a per-schema basis](#using-alembic-with-our-multi-schema-database).
+- [represent a multischema Postgres db through use of the SQLAlchemy ORM](#represent-a-multischema-postgres-db-through-use-of-the-sqlalchemy-orm),
+- [dynamically query tables with the same name in different schemas](#dynamically-query-tables-with-the-same-name-in-different-schemas),
+  and finally,
+- [implement the db migration tool alembic in a way that allows generating migrations on a per-schema basis](#using-alembic-with-our-multi-schema-database).
 
 For this, I will use a dummy example database containing two schemas (`Asia` and
 `Europe`).

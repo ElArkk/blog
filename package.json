@@ -5,15 +5,17 @@
 	"main": "index.js",
 	"dependencies": {},
 	"devDependencies": {
-		"eslint": "^6.8.0",
-		"eslint-config-prettier": "^6.10.0",
-		"eslint-plugin-prettier": "^3.1.2",
-		"prettier": "^1.19.1",
-		"minimist": ">=0.2.1"
+		"eslint": "^9.0.0",
+		"eslint-config-prettier": "^9.0.0",
+		"eslint-plugin-prettier": "^5.0.0",
+		"prettier": "^3.0.0",
+		"minimist": ">=1.2.8"
 	},
 	"scripts": {
 		"test": "echo \"Error: no test specified\" && exit 1",
-		"format": "prettier --write './**/*.{md,markdown}'"
+		"format": "prettier --write './**/*.{md,markdown}'",
+		"lint": "eslint . --ext .js,.jsx,.ts,.tsx",
+		"lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix"
 	},
 	"repository": {
 		"type": "git",

@@ -21,11 +21,21 @@
 title: Arkadij Kummer
 email: arkadij dot kummer at gmail dot com
 description: >- # this means to ignore newlines until "baseurl:"
-    I'm a biologist heading into the world of data science and machine learning.
+    Biological data scientist turned ML engineer.
 baseurl: "/blog" # the subpath of your site, e.g. /blog
 url: "https://elarkk.github.io" # the base hostname & protocol for your site, e.g. http://example.com
 twitter_username: ElArkkk
 github_username: ElArkk
+
+# Staticman & reCAPTCHA
+# Set this to your Modal web endpoint base URL (no trailing slash)
+staticman_endpoint: "https://elarkk--staticman-elarkk-fastapi-app.modal.run"
+recaptcha:
+  enabled: false
+  # Public site key (not secret)
+  site_key: "REPLACE_WITH_RECAPTCHA_SITE_KEY"
+  # Encrypted secret (must be encrypted with Staticman's RSA public key)
+  encrypted_secret: "REPLACE_WITH_ENCRYPTED_SECRET"
 
 # Build settings
 theme: minima
@@ -38,6 +48,8 @@ plugins:
 
 highlighter: rouge
 markdown: kramdown
+sass:
+  quiet_deps: true
 kramdown:
   input: GFM
   syntax_highlighter: rouge

@@ -2,9 +2,13 @@
 <!-- Comments Form -->
 <!-- Adapted from https://medium.com/@vilcins/staticman-comments-on-a-jekyll-site-e55a24828980 -->
 <div id="comment_form">
-	<form method="POST" action="https://staticman-elarkk.herokuapp.com/v2/entry/ElArkk/blog/gh-pages/comments">
+	<form method="POST" action="{{ site.staticman_endpoint }}/v2/entry/ElArkk/blog/gh-pages/comments">
 		<input name="options[redirect]" type="hidden" value="https://elarkk.github.io/blog/" />
 		<input name="options[slug]" type="hidden" value="{{ page.slug }}" />
+		{% if site.recaptcha.enabled %}
+		<input type="hidden" name="options[reCaptcha][siteKey]" value="{{ site.recaptcha.site_key }}" />
+		<input type="hidden" name="options[reCaptcha][secret]" value="{{ site.recaptcha.encrypted_secret }}" />
+		{% endif %}
 		<div>
 			<!-- <label>Name</label> -->
 			<input name="fields[name]" type="text" placeholder="Name" />
@@ -21,6 +25,10 @@
 			<small>Comments will appear after moderation.</small>
 		</div>
 		<div>
+			{% if site.recaptcha.enabled %}
+			<div class="g-recaptcha" data-sitekey="{{ site.recaptcha.site_key }}"></div>
+			<script src="https://www.google.com/recaptcha/api.js" async defer></script>
+			{% endif %}
 			<button type="submit">Submit comment</button>
 		</div>
 	</form>

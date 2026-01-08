@@ -78,7 +78,7 @@ comments:
     
     reCaptcha:
         enabled: false
-        # The siteKey is public
-        siteKey: "REPLACE_WITH_RECAPTCHA_SITE_KEY"
-        # The secret must be encrypted with your Staticman RSA public key
-        secret: "REPLACE_WITH_ENCRYPTED_SECRET"
+        # The siteKey is public (only needed if enabled)
+        siteKey: ""
+        # The secret must be encrypted with your Staticman RSA public key (only needed if enabled)
+        secret: ""

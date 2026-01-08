@@ -32,10 +32,10 @@ github_username: ElArkk
 staticman_endpoint: "https://elarkk--staticman-elarkk-fastapi-app.modal.run"
 recaptcha:
   enabled: false
-  # Public site key (not secret)
-  site_key: "REPLACE_WITH_RECAPTCHA_SITE_KEY"
-  # Encrypted secret (must be encrypted with Staticman's RSA public key)
-  encrypted_secret: "REPLACE_WITH_ENCRYPTED_SECRET"
+  # Public site key (only needed if enabled)
+  site_key: ""
+  # Encrypted secret (only needed if enabled - must be encrypted with Staticman's RSA public key)
+  encrypted_secret: ""
 
 # Build settings
 theme: minima

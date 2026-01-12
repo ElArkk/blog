@@ -184,12 +184,14 @@ Claude Code and other hosted solutions don't give you this visibility. With your
 
 Modal charges per-second for GPU time. An H100 runs $3.95/hour, with options ranging from T4 at $0.59/hour up to B200 at $6.25/hour.
 
-Running Qwen3-Coder-30B on an H100:
+Running Qwen3-Coder-30B on an A100-40GB GPU (~2.10$/hour):
 - No idle costs with 300s scaledown window
 - You only pay while the model is actually running
 - Much cheaper than hosted APIs for heavy usage
 
 **Rightsizing**: You could optimize by choosing a smaller GPU for your model. A 30B model might run fine on an A100 or L40S. Experiment to find the best price/performance for your needs.
+
+**Slow inference?** If generation is painfully slow, check if Ollama is offloading layers to CPU. You'll see logs like `offloaded 44/49 layers to GPU` and `offloading output layer to CPU`. This happens when VRAM can't fit the model weights plus KV cache. Since the output layer runs on every token, CPU offload creates a bottleneck on every generation step. Fix it by reducing context length, using a smaller quantization (Q3/Q2 instead of Q4), or just picking a bigger GPU.
 
 **Storage**: Model weights are stored on Modal volumes. Storage is currently free, but Modal will soon start charging (similar to AWS pricing). For a 30B Q8 model (~30GB), expect a few dollars per month once pricing kicks in.
 

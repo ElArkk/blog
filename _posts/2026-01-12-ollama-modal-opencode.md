@@ -7,7 +7,7 @@ categories:
   - "python"
   - "infra"
   - "agentic"
-excerpt: "A missing newline character broke my agentic coding setup for hours. Here's how I debugged a subtle SSE streaming bug while self-hosting Ollama on Modal for OpenCode — plus the full deployment setup."
+excerpt: "A missing newline character broke my agentic coding setup for hours. Here's how I debugged a subtle SSE streaming bug while self-hosting Ollama on Modal for OpenCode, plus the full deployment setup."
 ---
 
 I wanted to run [OpenCode](https://opencode.ai) with a self-hosted LLM. [Ollama](https://ollama.com) on [Modal](https://modal.com) seemed perfect - fast spin-up, no idle costs, pay for what you use.
@@ -18,7 +18,7 @@ This post covers the debugging journey first, then the working setup. If you jus
 
 #### The Setup
 
-You can't just expose Ollama directly on Modal. Modal does offer [Proxy Auth Tokens](https://modal.com/docs/guide/webhook-proxy-auth) with stable URLs, but they use custom headers — not the standard Bearer token that OpenCode expects. Ollama itself has [no built-in authentication](https://github.com/ollama/ollama/issues/8536) either. So I built a FastAPI layer: stable URL, Bearer token auth, proxying requests to Ollama. But when you proxy a streaming API, you have to pass the output through correctly. That's where things went wrong.
+You can't just expose Ollama directly on Modal. Modal does offer [Proxy Auth Tokens](https://modal.com/docs/guide/webhook-proxy-auth) with stable URLs, but they use custom headers - not the standard Bearer token that OpenCode expects. Ollama itself has [no built-in authentication](https://github.com/ollama/ollama/issues/8536) either. So I built a FastAPI layer: stable URL, Bearer token auth, proxying requests to Ollama. But when you proxy a streaming API, you have to pass the output through correctly. That's where things went wrong.
 
 The architecture:
 

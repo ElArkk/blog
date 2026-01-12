@@ -21,18 +21,15 @@ layout: default
           {{ post.title | escape }}
         </a>
       </h3>
-      <h5>
+      <div class="post-categories">
         {%- for category in post.categories -%}
         <a href="/blog/category/{{ category }}">#{{ category }} </a>
         {%- endfor -%}
-      </h5>
-      <h4>
-        {{ post.excerpt}}
-        <br>
-        <a href="{{ post.url | relative_url }}">
-          Read on...
-        </a>
-      </h4>
+      </div>
+      <p class="post-excerpt">
+        {{ post.excerpt }}
+        <a href="{{ post.url | relative_url }}">Read on...</a>
+      </p>
 
     </li>
     {%- endfor -%}

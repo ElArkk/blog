@@ -21,8 +21,8 @@
     .mermaid {
       display: flex;
       justify-content: center;
-      background: #f8f9fa;
-      border: 1px solid #e9ecef;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
       border-radius: 6px;
       padding: 1rem;
       margin: 1rem 0;
@@ -34,7 +34,7 @@
   </style>
   <script type="module">
     import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
-    
+
     // Convert Jekyll's code blocks to Mermaid format
     document.querySelectorAll('pre > code.language-mermaid').forEach((codeBlock) => {
       const pre = codeBlock.parentElement;
@@ -43,10 +43,12 @@
       div.textContent = codeBlock.textContent;
       pre.parentElement.replaceChild(div, pre);
     });
-    
+
+    // Initialize with theme-aware settings
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
     mermaid.initialize({
       startOnLoad: true,
-      theme: 'neutral'
+      theme: isDark ? 'dark' : 'neutral'
     });
   </script>
 

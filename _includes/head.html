@@ -2,7 +2,13 @@
   <meta charset="utf-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  {%- include theme-init.html -%}
+
   {%- seo -%}
+  {%- include meta-tags.html -%}
+  {%- include json-ld.html -%}
+
   <link rel="stylesheet" href="{{ "/assets/main.css" | relative_url }}">
   <link rel="shortcut icon" type="image/png" href="{{ "/assets/img/favicons/android-chrome-512x512.png" | relative_url }}">
   {%- feed_meta -%}

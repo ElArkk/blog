@@ -18,14 +18,29 @@
 # You can create any custom variable you would like, and they will be accessible
 # in the templates via {{ site.myvariable }}.
 
-title: Arkadij Kummer
+title: ElArk's Blog
 email: arkadij dot kummer at gmail dot com
 description: >- # this means to ignore newlines until "baseurl:"
-    Biological data scientist turned ML engineer.
+    Biological data scientist turned ML engineer. Writing about machine learning,
+    software engineering, and sometimes about other matters.
 baseurl: "/blog" # the subpath of your site, e.g. /blog
 url: "https://elarkk.github.io" # the base hostname & protocol for your site, e.g. http://example.com
+author: Arkadij Kummer
 twitter_username: ElArkkk
 github_username: ElArkk
+
+# SEO defaults
+defaults:
+  - scope:
+      path: ""
+      type: "posts"
+    values:
+      layout: "post"
+      author: "Arkadij Kummer"
+  - scope:
+      path: ""
+    values:
+      image: /assets/img/favicons/android-chrome-512x512.png
 
 # Staticman & reCAPTCHA
 # Set this to your Modal web endpoint base URL (no trailing slash)

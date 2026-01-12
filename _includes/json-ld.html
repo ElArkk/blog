@@ -1,0 +1,63 @@
+{% if page.layout == 'post' %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "{{ page.url | absolute_url }}"
+  },
+  "headline": "{{ page.title | escape }}",
+  "description": "{{ page.excerpt | strip_html | truncatewords: 50 | escape }}",
+  "image": {% if page.image %}"{{ page.image | absolute_url }}"{% else %}"{{ '/assets/img/favicons/android-chrome-512x512.png' | absolute_url }}"{% endif %},
+  "author": {
+    "@type": "Person",
+    "name": "{{ site.author | default: site.title }}",
+    "url": "{{ site.url }}"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "{{ site.title }}",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "{{ '/assets/img/favicons/android-chrome-512x512.png' | absolute_url }}"
+    }
+  },
+  "datePublished": "{{ page.date | date_to_xmlschema }}",
+  "dateModified": "{{ page.last_modified_at | default: page.date | date_to_xmlschema }}"{% if page.categories.size > 0 %},
+  "keywords": "{{ page.categories | join: ', ' }}"{% endif %}
+}
+</script>
+{% elsif page.layout == 'home' or page.url == '/' %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Blog",
+  "name": "{{ site.title }}",
+  "description": "{{ site.description | escape }}",
+  "url": "{{ site.url }}{{ site.baseurl }}",
+  "author": {
+    "@type": "Person",
+    "name": "{{ site.author | default: site.title }}"{% if site.twitter_username %},
+    "sameAs": [
+      "https://twitter.com/{{ site.twitter_username }}"{% if site.github_username %},
+      "https://github.com/{{ site.github_username }}"{% endif %}
+    ]{% endif %}
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "{{ site.title }}"
+  }
+}
+</script>
+{% else %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "name": "{{ page.title | default: site.title }}",
+  "description": "{{ page.description | default: site.description | escape }}",
+  "url": "{{ page.url | absolute_url }}"
+}
+</script>
+{% endif %}

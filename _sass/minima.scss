@@ -1,38 +1,81 @@
 @charset "utf-8";
 
-// Define defaults for each variable.
+// ==========================================================================
+// Typography
+// ==========================================================================
+$base-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                   "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji",
+                   "Segoe UI Emoji", "Segoe UI Symbol" !default;
+$heading-font-family: $base-font-family !default;
+$code-font-family: "SF Mono", SFMono-Regular, Consolas, "Liberation Mono",
+                   Menlo, monospace !default;
 
-$base-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol" !default;
-$base-font-size:   16px !default;
+$base-font-size:   17px !default;
 $base-font-weight: 400 !default;
+$base-line-height: 1.7 !default;
 $small-font-size:  $base-font-size * 0.875 !default;
-$base-line-height: 1.5 !default;
 
-$spacing-unit:     30px !default;
+$spacing-unit:     32px !default;
 
-$text-color:       #111 !default;
-$background-color: #fdfdfd !default;
-$brand-color:      #2a7ae2 !default;
+// ==========================================================================
+// Color Palette (Light Mode - defaults)
+// ==========================================================================
+$text-color:         #111827 !default;
+$text-muted:         #6b7280 !default;
+$background-color:   #faf9f7 !default;
+$surface-color:      #ffffff !default;
+$brand-color:        #2563eb !default;
+$brand-hover:        #1d4ed8 !default;
+$border-color:       #e5e4e1 !default;
+$code-bg:            #f4f3f0 !default;
 
-$grey-color:       #828282 !default;
-$grey-color-light: lighten($grey-color, 40%) !default;
-$grey-color-dark:  darken($grey-color, 25%) !default;
+$grey-color:         #6b7280 !default;
+$grey-color-light:   #d4d4d8 !default;
+$grey-color-dark:    #3d3d4d !default;
 
 $table-text-align: left !default;
 
-// Width of the content area
-$content-width:    800px !default;
-
+// ==========================================================================
+// Layout
+// ==========================================================================
+$content-width:    720px !default;
 $on-palm:          600px !default;
 $on-laptop:        800px !default;
 
-// Use media queries like this:
-// @include media-query($on-palm) {
-//   .wrapper {
-//     padding-right: $spacing-unit / 2;
-//     padding-left: $spacing-unit / 2;
-//   }
-// }
+// ==========================================================================
+// CSS Custom Properties for Theme Switching
+// ==========================================================================
+:root {
+  --color-text:        #{$text-color};
+  --color-text-muted:  #{$text-muted};
+  --color-background:  #{$background-color};
+  --color-surface:     #{$surface-color};
+  --color-brand:       #{$brand-color};
+  --color-brand-hover: #{$brand-hover};
+  --color-border:      #{$border-color};
+  --color-code-bg:     #{$code-bg};
+  --color-grey:        #{$grey-color};
+  --color-grey-light:  #{$grey-color-light};
+  --color-grey-dark:   #{$grey-color-dark};
+}
+
+[data-theme="dark"] {
+  --color-text:        #e8e6e3;
+  --color-text-muted:  #9a9a9a;
+  --color-background:  #121212;
+  --color-surface:     #1e1e1e;
+  --color-brand:       #4a9f4a;
+  --color-brand-hover: #5cb85c;
+  --color-border:      #2e2e2e;
+  --color-code-bg:     #1a1a1a;
+  --color-grey:        #8a8a9a;
+  --color-grey-light:  #4d4d6d;
+  --color-grey-dark:   #b8b8c8;
+}
+
+// ==========================================================================
+// Mixins
+// ==========================================================================
 @mixin media-query($device) {
   @media screen and (max-width: $device) {
     @content;
@@ -43,7 +86,7 @@ $on-laptop:        800px !default;
   font-size: $base-font-size * $ratio;
 }
 
-// Import partials.
+// Import partials
 @import
   "minima/base",
   "minima/layout",

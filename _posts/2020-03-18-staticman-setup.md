@@ -3,6 +3,7 @@ layout: post
 title: "Setting up Staticman for self-hosted comments"
 date: 2020-03-18
 permalink: /staticman-setup
+image: /assets/img/og/staticman-setup.webp
 categories:
   - "webdev"
   - "python"

@@ -3,6 +3,7 @@ layout: post
 title: "Running OpenCode with Self-Hosted Ollama on Modal"
 date: 2026-01-12
 permalink: /ollama-on-modal-for-opencode
+image: /assets/img/og/ollama-modal-opencode.webp
 categories:
   - "python"
   - "infra"

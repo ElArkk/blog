@@ -40,7 +40,7 @@ defaults:
   - scope:
       path: ""
     values:
-      image: /assets/img/favicons/android-chrome-512x512.png
+      image: /assets/img/og/og-default.webp
 
 # Staticman & reCAPTCHA
 # Set this to your Modal web endpoint base URL (no trailing slash)

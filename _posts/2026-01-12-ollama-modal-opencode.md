@@ -27,10 +27,10 @@ OpenCode Client
     ↓ (HTTPS, streaming)
 Modal FastAPI (authentication layer)
     ↓ (localhost)
-Ollama container with GPU
+Ollama container with GPU (H100 / A100 / A10)
 ```
 
-Modal runs Ollama in a container with an H100. A FastAPI app handles auth and proxies requests to Ollama's OpenAI-compatible `/v1/chat/completions` endpoint.
+Modal runs Ollama in a container with a GPU. The deployment supports multiple GPU tiers - H100, A100-40GB, and A10 - each exposed as a separate endpoint. A FastAPI app handles auth and proxies requests to Ollama's OpenAI-compatible `/v1/chat/completions` endpoint.
 
 #### The Problem
 
@@ -97,7 +97,10 @@ Key points:
 - FastAPI runs inside the Ollama container (same process, localhost access)
 - `aiter_bytes()` preserves SSE format exactly
 - Bearer token auth via Modal secrets
-- H100 GPU with 300s scaledown window
+- Three GPU tiers: H100 ($3.95/hr), A100-40GB ($2.10/hr), A10 ($1.10/hr)
+- CPU-only containers for model pulling (no GPU cost)
+- 300s scaledown window (no idle costs)
+- Shared model volume across all GPU tiers
 
 Deploy:
 ```bash
@@ -106,9 +109,16 @@ modal deploy ollama_api.py
 modal run ollama_api.py::pull_model --model-name qwen3-coder:30b
 ```
 
+**Note:** Models are stored on a shared volume, so you only need to pull once. All GPU tiers can access any pulled model. Pulling runs on CPU-only containers (no GPU cost).
+
 **Note:** The API key can be anything you want, you define it when creating the Modal secret. It's just a shared secret between your client and your deployment.
 
 #### OpenCode Config
+
+Since Modal's GPU is configured per-endpoint (not per-request), you need a separate provider for each GPU tier. After deploying, you'll get three URLs:
+- `https://YOUR-WORKSPACE--ollama-api-ollamaserviceh100-web.modal.run`
+- `https://YOUR-WORKSPACE--ollama-api-ollamaservicea100-web.modal.run`
+- `https://YOUR-WORKSPACE--ollama-api-ollamaservicea10-web.modal.run`
 
 Add to your `opencode.json`:
 
@@ -116,15 +126,34 @@ Add to your `opencode.json`:
 {
   "$schema": "https://opencode.ai/config.json",
   "provider": {
-    "modal-ollama": {
+    "modal-h100": {
       "npm": "@ai-sdk/openai-compatible",
-      "name": "Modal Ollama",
+      "name": "Modal Ollama (H100)",
       "options": {
-        "baseURL": "https://YOUR-MODAL-URL/v1",
-        "num_ctx": "65536" # default Ollama context size is too small
+        "baseURL": "https://YOUR-WORKSPACE--ollama-api-ollamaserviceh100-web.modal.run/v1",
+        "num_ctx": "65536"
       },
       "models": {
-        "qwen3-coder:30b": { # direct ollama model
+        "hf.co/unsloth/GLM-4.7-GGUF:latest": {
+          "name": "GLM 4.7",
+          "tool_call": true,
+          "reasoning": true,
+          "limit": {
+            "context": 256000,
+            "output": 64000
+          }
+        }
+      }
+    },
+    "modal-a100": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Modal Ollama (A100)",
+      "options": {
+        "baseURL": "https://YOUR-WORKSPACE--ollama-api-ollamaservicea100-web.modal.run/v1",
+        "num_ctx": "65536"
+      },
+      "models": {
+        "qwen3-coder:30b": {
           "name": "Qwen 3 Coder 30B",
           "tool_call": true,
           "reasoning": true,
@@ -140,14 +169,15 @@ Add to your `opencode.json`:
           "limit": {
             "context": 256000,
             "output": 64000
-          },
+          }
+        }
       }
     }
   }
 }
 ```
 
-Then in OpenCode, run `/connect`, select "Modal Ollama", and enter your API key when prompted.
+Then in OpenCode, run `/connect`, select the appropriate provider for your GPU tier, and enter your API key when prompted.
 
 **Note:** I'm not certain the context and output limits I've set are optimal. Experiment with these values for your use case.
 
@@ -168,7 +198,7 @@ For example:
 modal run ollama_api.py::pull_model --model-name hf.co/unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF:Q8_K_XL
 ```
 
-Then add it to your OpenCode config as shown above.
+Then add it to your OpenCode config under the appropriate GPU tier provider.
 
 #### Bonus: Full Visibility
 
@@ -189,9 +219,9 @@ Running Qwen3-Coder-30B on an A100-40GB GPU (~2.10$/hour):
 - You only pay while the model is actually running
 - Much cheaper than hosted APIs for heavy usage
 
-**Rightsizing**: You could optimize by choosing a smaller GPU for your model. A 30B model might run fine on an A100 or L40S. Experiment to find the best price/performance for your needs.
+**Picking the right tier**: For Qwen3-Coder-30B with 65k context, A100-40GB is the sweet spot. The model fits entirely in VRAM with room for the KV cache. H100 gives faster inference but costs nearly 2x more. A10 is too small for 30B models with large context windows.
 
-**Slow inference?** If generation is painfully slow, check if Ollama is offloading layers to CPU. You'll see logs like `offloaded 44/49 layers to GPU` and `offloading output layer to CPU`. This happens when VRAM can't fit the model weights plus KV cache. Since the output layer runs on every token, CPU offload creates a bottleneck on every generation step. Fix it by reducing context length, using a smaller quantization (Q3/Q2 instead of Q4), or just picking a bigger GPU.
+**Slow inference?** If generation is painfully slow, check if Ollama is offloading layers to CPU. You'll see logs like `offloaded 44/49 layers to GPU` and `offloading output layer to CPU`. This happens when VRAM can't fit the model weights plus KV cache. Since the output layer runs on every token, CPU offload creates a bottleneck on every generation step. Fix it by reducing context length, using a smaller quantization (Q3/Q2 instead of Q4), or moving to a larger GPU tier.
 
 **Storage**: Model weights are stored on Modal volumes. Storage is currently free, but Modal will soon start charging (similar to AWS pricing). For a 30B Q8 model (~30GB), expect a few dollars per month once pricing kicks in.
 

@@ -10,7 +10,7 @@ categories:
 excerpt: "A missing newline character broke my agentic coding setup for hours. Here's how I debugged a subtle SSE streaming bug while self-hosting Ollama on Modal for OpenCode, plus the full deployment setup."
 ---
 
-I wanted to run [OpenCode](https://opencode.ai) with a self-hosted LLM. [Ollama](https://ollama.com) on [Modal](https://modal.com) seemed perfect - fast spin-up, no idle costs, pay for what you use.
+I wanted to run [OpenCode](https://opencode.ai) with a self-hosted LLM, but I don't have a beefy GPU at home. [Ollama](https://ollama.com) on [Modal](https://modal.com) seemed like the next best thing - fast spin-up, no idle costs, pay for what you use.
 
 It took longer than expected.
 
@@ -95,11 +95,9 @@ Deploy Ollama with a FastAPI authentication wrapper. The full code is available 
 
 Key points:
 - FastAPI runs inside the Ollama container (same process, localhost access)
-- `aiter_bytes()` preserves SSE format exactly
 - Bearer token auth via Modal secrets
 - Three GPU tiers: H100 ($3.95/hr), A100-40GB ($2.10/hr), A10 ($1.10/hr)
-- CPU-only containers for model pulling (no GPU cost)
-- 300s scaledown window (no idle costs)
+- 300s scaledown window
 - Shared model volume across all GPU tiers
 
 Deploy:
@@ -120,7 +118,7 @@ Since Modal's GPU is configured per-endpoint (not per-request), you need a separ
 - `https://YOUR-WORKSPACE--ollama-api-ollamaservicea100-web.modal.run`
 - `https://YOUR-WORKSPACE--ollama-api-ollamaservicea10-web.modal.run`
 
-Add to your `opencode.json`:
+In your OpenCode config file (`opencode.json`), you'll need to add a provider for each GPU tier you want to use:
 
 ```json
 {
@@ -162,7 +160,7 @@ Add to your `opencode.json`:
             "output": 64000
           }
         },
-        "hf.co/unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF:Q8_K_XL": { # hugging face model
+        "hf.co/unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF:Q8_K_XL": {
           "name": "Qwen 3 Coder 30B A3B Q8 HF",
           "tool_call": true,
           "reasoning": true,
@@ -177,11 +175,11 @@ Add to your `opencode.json`:
 }
 ```
 
-Then in OpenCode, run `/connect`, select the appropriate provider for your GPU tier, and enter your API key when prompted.
+Then in OpenCode, run `/connect`, select the appropriate model / provider combination, and enter your API key when prompted.
 
 **Note:** I'm not certain the context and output limits I've set are optimal. Experiment with these values for your use case.
 
-**Note:** I tried Llama 3.2 3B but it doesn't work well with OpenCode. The model just can't handle tool calling reliably. Stick with larger models like Qwen3-Coder-30B for agentic coding.
+**Note:** I tried Llama 3.2 3B but it doesn't work well with OpenCode. The model just can't handle tool calling reliably. Stick with larger models for agentic coding.
 
 #### Using Hugging Face Models
 
@@ -213,11 +211,6 @@ Claude Code and other hosted solutions don't give you this visibility. With your
 #### Cost
 
 Modal charges per-second for GPU time. An H100 runs $3.95/hour, with options ranging from T4 at $0.59/hour up to B200 at $6.25/hour.
-
-Running Qwen3-Coder-30B on an A100-40GB GPU (~2.10$/hour):
-- No idle costs with 300s scaledown window
-- You only pay while the model is actually running
-- Much cheaper than hosted APIs for heavy usage
 
 **Picking the right tier**: For Qwen3-Coder-30B with 65k context, A100-40GB is the sweet spot. The model fits entirely in VRAM with room for the KV cache. H100 gives faster inference but costs nearly 2x more. A10 is too small for 30B models with large context windows.
 

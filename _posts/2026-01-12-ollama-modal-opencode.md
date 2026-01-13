@@ -182,7 +182,7 @@ Then in OpenCode, run `/connect`, select the appropriate model / provider combin
 
 **Note:** I tried Llama 3.2 3B but it doesn't work well with OpenCode. The model just can't handle tool calling reliably. Stick with larger models for agentic coding.
 
-**Note:** Ollama has issues with some HuggingFace GGUF models. For example, GLM 4.7 reports that tool calls aren't available, even though the model supports them (see similar issue [here](https://github.com/anomalyco/opencode/issues/3122)). I'm exploring llama.cpp and vLLM as alternatives — they may handle these models better. More on that in a future post.
+**Note:** Ollama has issues with some HuggingFace GGUF models. For example, GLM 4.7 reports that tool calls aren't available, even though the model supports them (see similar issue [here](https://github.com/anomalyco/opencode/issues/3122)). I'm exploring llama.cpp and vLLM as alternatives - they may handle these models better. More on that in a future post.
 
 #### Using Hugging Face Models
 

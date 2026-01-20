@@ -1,0 +1,72 @@
+---
+layout: page
+title: Comment Error
+permalink: /comment-error/
+---
+
+<div class="comment-error">
+  <h2>😕 Oops! Something went wrong</h2>
+  
+  <p>Your comment couldn't be submitted. This usually happens when:</p>
+  
+  <ul>
+    <li>The reCAPTCHA wasn't completed</li>
+    <li>Required fields (name or message) were empty</li>
+    <li>There was a temporary server issue</li>
+  </ul>
+  
+  <p><strong>Please go back and try again.</strong></p>
+  
+  <p>
+    <a href="javascript:history.back()" class="btn">← Go Back</a>
+  </p>
+</div>
+
+<style>
+.comment-error {
+  max-width: 600px;
+  margin: 2rem auto;
+  padding: 2rem;
+  background: #fef3f3;
+  border: 1px solid #f5c6c6;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.comment-error h2 {
+  color: #c53030;
+  margin-bottom: 1rem;
+}
+
+.comment-error ul {
+  text-align: left;
+  display: inline-block;
+  margin: 1rem 0;
+}
+
+.comment-error .btn {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  background: #4a5568;
+  color: white;
+  text-decoration: none;
+  border-radius: 4px;
+  margin-top: 1rem;
+}
+
+.comment-error .btn:hover {
+  background: #2d3748;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .comment-error {
+    background: #2d1f1f;
+    border-color: #5c3a3a;
+  }
+  
+  .comment-error h2 {
+    color: #fc8181;
+  }
+}
+</style>

@@ -4,6 +4,7 @@
 <div id="comment_form">
 	<form method="POST" action="{{ site.staticman_endpoint }}/v2/entry/ElArkk/blog/gh-pages/comments">
 		<input name="options[redirect]" type="hidden" value="{{ site.url }}{{ site.baseurl }}{{ page.url }}" />
+		<input name="options[redirectError]" type="hidden" value="{{ site.url }}{{ site.baseurl }}/comment-error/" />
 		<input name="options[slug]" type="hidden" value="{{ page.slug }}" />
 		{% if site.recaptcha.enabled %}
 		<input type="hidden" name="options[reCaptcha][siteKey]" value="{{ site.recaptcha.site_key }}" />

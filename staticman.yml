@@ -76,9 +76,11 @@ comments:
     transforms:
         email: md5
     
+    # reCAPTCHA spam protection - see https://www.google.com/recaptcha/admin to register
     reCaptcha:
-        enabled: false
-        # The siteKey is public (only needed if enabled)
-        siteKey: ""
-        # The secret must be encrypted with your Staticman RSA public key (only needed if enabled)
-        secret: ""
+        enabled: true
+        # The siteKey is public - get from reCAPTCHA admin console (v2 "I'm not a robot" checkbox)
+        siteKey: "6Le2EFEsAAAAAGIkHK4dzBaIWGJCBfX6BrW6E_-j"
+        # The secret must be encrypted with your Staticman RSA public key
+        # Encrypt at: https://elarkk--staticman-elarkk-fastapi-app.modal.run/v2/encrypt/YOUR_RECAPTCHA_SECRET
+        secret: "Ggp1gu5dKP1Bax3UvtbAELzap778OVdDzaacmp+pjlsh1nnPM/D3dFUzeja8x+++1U7KxvXvynO1hzhSQJ5KuTOHNDHWib/+cRz7wk6+WF0jGPCDRCtupZojag5K8/bshtuXrB/RZl/17SiWrPS8YMA2G7dtQKcMb+Ch+eIrzGZsR9zummdWkzGlCyvHygFShW/u5tdfwKHfewYl2imfubWeFjHUDWGh8j+vueY1wnPgCmtIvq4/0hkLzyRojVrln5b3UfpVH7KsnFCrIAH2SIdNb2fWau74SQMLwnhCu97E3XSsKejpj47pPgh1bJIjpYdMZvMVlQ/laCYxfKacK77exZgIzjaTd4XFxSAih+O2Raa0r82tmLYb8LwVOhxXFjNA3TkCTjGowTJR8POEyuwVm3O59/sFw3NZkGksUKJpC8GNR14LQFc3ciUK9xae6p+QIUnq70MnhhtlP4lzs4oqd+SY9eqzHhCaWY0GQWUscXhQImlwIrYbCp11LNv1mxBqo05+tWM3KUlfMeIAK1r6XrdrrnjaIYVE1CqISjkK7nM/pNQpuYqePLr8nlMuj9aGe5kqfcN94/UOVLLKRLChtBDhp9BBvnvt7RO029adJgg65TtPKGK9f6TDXrflJduwMA5xzR4VrBJ7l87yemjwwXCv8492lQPwDLhLm14="

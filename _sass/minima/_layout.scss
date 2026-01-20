@@ -230,6 +230,34 @@
   flex: 1;
 }
 
+/**
+ * Home page background
+ */
+.home {
+  position: relative;
+  z-index: 1;
+
+  &::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image: url("/blog/assets/img/og/og-default.webp");
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    opacity: 0.06;
+    z-index: -1;
+    pointer-events: none;
+  }
+}
+
+[data-theme="dark"] .home::before {
+  opacity: 0.08;
+}
+
 .page-heading {
   @include relative-font-size(2);
 }

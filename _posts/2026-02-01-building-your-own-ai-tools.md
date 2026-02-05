@@ -5,15 +5,17 @@ date: 2026-02-01
 permalink: /building-your-own-ai-tools
 image: /assets/img/og/building-your-own-ai-tools.webp
 categories:
-  - "python"
-  - "infra"
+  - "note-taking"
+  - "obsidian"
   - "agentic"
 excerpt: "With autonomous AI agents gaining full computer access, I went the opposite direction: a focused tool that only touches my notes. Here's why constraints might be more valuable than capabilities."
 ---
 
 ClawdBot, MoltBot, Computer Use. The trend in AI tooling is clear: give the model access to everything and let it figure things out. Email, calendar, browser, terminal, file system. The pitch is compelling. Why limit what an AI can do when it could handle your entire digital life?
 
-I went a different direction. I built an AI assistant that can only access my Obsidian vault. It runs on Modal and talks to me through Telegram. It captures thoughts and turns them into permanent notes. It finds connections between ideas. It generates daily and weekly digests, pulling in my GitHub commits to recap what I actually worked on. It surfaces information when I need it and helps me manage tasks. What it cannot do is send emails, browse the web, or execute arbitrary code on my machine. And I think that's a feature, not a limitation.
+I went a different direction. I built an AI assistant that can only access my (work) Obsidian vault. It runs on Modal and talks to me through Telegram. It captures thoughts and turns them into permanent notes. It finds connections between ideas. It generates daily and weekly digests, pulling in my GitHub commits to recap what I actually worked on. It surfaces information when I need it and helps me manage tasks.
+
+What it cannot do is send emails or execute arbitrary code on my machine. And I think that's a feature, not a limitation.
 
 This isn't my only automation. I have other tools for other things, like running Claude Code from my phone. But each tool is constrained to its domain.
 
@@ -33,7 +35,7 @@ Telegram → Modal Webhook → Claude Agent → Google Drive (Vault)
 
 (This was in part inspired by [this post](https://www.linkedin.com/posts/activity-7421818523116625920-5NIH?utm_source=share&utm_medium=member_desktop&rcm=ACoAABkhbRsBtGyHyf5SsS8_-RYGMIEWMAecgV8))
 
-Each component serves a specific purpose. Telegram is the input layer. Modal provides serverless execution with cost controls. Claude does the reasoning. Google Drive is the persistence layer. There's no ambient access to my computer, no ability to "do whatever seems helpful."
+Each component serves a specific purpose. Telegram is the input layer. Modal provides serverless execution with cost controls. Claude does the reasoning. Google Drive is the persistence layer. And since it's just files on Drive, I can still access and edit everything directly through Obsidian on my computer. There's no ambient access to my machine, no ability to "do whatever seems helpful."
 
 This constraint shapes what the tool can be. When I send a voice note, it gets transcribed and processed according to a skill definition stored in the vault itself. The skill defines exactly what to extract, where to file it, and how to link it to existing notes. When I ask a question, Claude searches the vault using Google Drive's full-text index, reads the relevant files, and synthesizes an answer. It cannot go beyond what's in the vault because nothing else is connected.
 
@@ -49,9 +51,7 @@ Maybe this is cope. Maybe in two years I'll look back at this and laugh at how I
 
 #### The Technical Reality
 
-Building this took about an hour with Claude Opus. Most of it was one-shotted. Two things required iteration: switching from a Google service account to OAuth (service accounts can't write to personal Drive storage), and using Google Drive's native full-text search instead of having the agent read files one by one (which times out on large vaults).
-
-The vault operations are all file-based. Read a file, write a file, search files, move a file, list a directory. Claude has no ability to execute code, make network requests, or do anything outside of manipulating markdown files. The tool operates in a single domain, does several things within that domain reliably, and I can reason about what it's doing because the surface area is bounded.
+Building this took about two hours with Claude Opus. Most of it was one-shotted. Two things required iteration: switching from a Google service account to OAuth (service accounts can't write to personal Drive storage), and using Google Drive's native full-text search instead of having the agent read files one by one (which is very inefficient for large vaults).
 
 For anyone technical enough to be reading this, the barrier to building something similar is low. Claude Code, Modal, Google Drive API, Telegram Bot API. All of these have free tiers or generous credits. The hardest part is defining what you actually want the tool to do, which forces you to think about what problem you're actually solving.
 
@@ -71,6 +71,6 @@ What I am saying is that the default shouldn't be "give the AI everything and se
 
 The Obsidian bot is still evolving. I want to add calendar integration so it can pull meeting context into daily digests. I might add email summaries at some point, though I'm wary of scope creep. The goal is to keep it focused on a single domain with clear boundaries, even as I add capabilities within that domain.
 
-If you're building something similar, the code is straightforward enough that I might open source it. The interesting part isn't the code anyway. It's the skill definitions that tell Claude how to process different types of input. Those are just markdown files with instructions. The power comes from being specific about what you want.
+The interesting part of this setup isn't the code. It's the skill definitions that tell Claude how to process different types of input. Those are just markdown files with instructions. The power comes from being specific about what you want.
 
 The broader point stands regardless of whether you adopt my particular solution. In a world where AI can do almost anything, the question of what you should let it do becomes important. Constraints aren't just about security. They're about maintaining clarity on what problems you're solving and keeping yourself in the loop on the thinking that matters.

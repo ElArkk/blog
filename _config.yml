@@ -29,6 +29,10 @@ author: Arkadij Kummer
 twitter_username: ElArkkk
 github_username: ElArkk
 
+# Google Analytics 4 measurement ID. Only loaded when JEKYLL_ENV=production
+# (see _includes/head.html). Respects DoNotTrack browser settings.
+google_analytics: G-0CRDYP7FRY
+
 # SEO defaults
 defaults:
   - scope:

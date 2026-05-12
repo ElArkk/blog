@@ -1,4 +1,5 @@
 {% if page.layout == 'post' %}
+{%- assign post_image = page.image | default: '/assets/img/favicons/android-chrome-512x512.png' -%}
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -7,38 +8,77 @@
     "@type": "WebPage",
     "@id": "{{ page.url | absolute_url }}"
   },
-  "headline": "{{ page.title | escape }}",
-  "description": "{{ page.excerpt | strip_html | truncatewords: 50 | escape }}",
-  "image": {% if page.image %}"{{ page.image | absolute_url }}"{% else %}"{{ '/assets/img/favicons/android-chrome-512x512.png' | absolute_url }}"{% endif %},
+  "headline": {{ page.title | jsonify }},
+  "description": {{ page.excerpt | strip_html | truncatewords: 50 | jsonify }},
+  "image": {
+    "@type": "ImageObject",
+    "url": "{{ post_image | absolute_url }}",
+    "width": {{ page.image_width | default: 1200 }},
+    "height": {{ page.image_height | default: 630 }}
+  },
   "author": {
     "@type": "Person",
-    "name": "{{ site.author | default: site.title }}",
-    "url": "{{ site.url }}"
+    "name": {{ site.author | default: site.title | jsonify }},
+    "url": "{{ site.url }}{{ site.baseurl }}"
   },
   "publisher": {
     "@type": "Organization",
-    "name": "{{ site.title }}",
+    "name": {{ site.title | jsonify }},
     "logo": {
       "@type": "ImageObject",
-      "url": "{{ '/assets/img/favicons/android-chrome-512x512.png' | absolute_url }}"
+      "url": "{{ '/assets/img/favicons/android-chrome-512x512.png' | absolute_url }}",
+      "width": 512,
+      "height": 512
     }
   },
   "datePublished": "{{ page.date | date_to_xmlschema }}",
-  "dateModified": "{{ page.last_modified_at | default: page.date | date_to_xmlschema }}"{% if page.categories.size > 0 %},
-  "keywords": "{{ page.categories | join: ', ' }}"{% endif %}
+  "dateModified": "{{ page.last_modified_at | default: page.date | date_to_xmlschema }}",
+  "inLanguage": "en"{% if page.categories.size > 0 %},
+  "keywords": {{ page.categories | join: ', ' | jsonify }},
+  "articleSection": {{ page.categories | first | capitalize | jsonify }}{% endif %}
 }
 </script>
+{% if page.categories.size > 0 %}
+{%- assign primary_category = page.categories | first -%}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": {{ site.title | jsonify }},
+      "item": "{{ '/' | absolute_url }}"
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": {{ primary_category | capitalize | jsonify }},
+      "item": "{{ '/category/' | append: primary_category | absolute_url }}"
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": {{ page.title | jsonify }},
+      "item": "{{ page.url | absolute_url }}"
+    }
+  ]
+}
+</script>
+{% endif %}
 {% elsif page.layout == 'home' or page.url == '/' %}
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "Blog",
-  "name": "{{ site.title }}",
-  "description": "{{ site.description | escape }}",
+  "name": {{ site.title | jsonify }},
+  "description": {{ site.description | strip_newlines | strip | jsonify }},
   "url": "{{ site.url }}{{ site.baseurl }}",
+  "inLanguage": "en",
   "author": {
     "@type": "Person",
-    "name": "{{ site.author | default: site.title }}"{% if site.twitter_username %},
+    "name": {{ site.author | default: site.title | jsonify }}{% if site.twitter_username %},
     "sameAs": [
       "https://twitter.com/{{ site.twitter_username }}"{% if site.github_username %},
       "https://github.com/{{ site.github_username }}"{% endif %}
@@ -46,7 +86,13 @@
   },
   "publisher": {
     "@type": "Organization",
-    "name": "{{ site.title }}"
+    "name": {{ site.title | jsonify }},
+    "logo": {
+      "@type": "ImageObject",
+      "url": "{{ '/assets/img/favicons/android-chrome-512x512.png' | absolute_url }}",
+      "width": 512,
+      "height": 512
+    }
   }
 }
 </script>
@@ -55,9 +101,15 @@
 {
   "@context": "https://schema.org",
   "@type": "WebPage",
-  "name": "{{ page.title | default: site.title }}",
-  "description": "{{ page.description | default: site.description | escape }}",
-  "url": "{{ page.url | absolute_url }}"
+  "name": {{ page.title | default: site.title | jsonify }},
+  "description": {{ page.description | default: site.description | strip_newlines | strip | jsonify }},
+  "url": "{{ page.url | absolute_url }}",
+  "inLanguage": "en",
+  "isPartOf": {
+    "@type": "WebSite",
+    "name": {{ site.title | jsonify }},
+    "url": "{{ site.url }}{{ site.baseurl }}"
+  }
 }
 </script>
 {% endif %}

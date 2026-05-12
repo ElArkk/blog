@@ -41,10 +41,16 @@ defaults:
     values:
       layout: "post"
       author: "Arkadij Kummer"
+      image_width: 1536
+      image_height: 1024
+      image_alt: "ElArk's Blog post header"
   - scope:
       path: ""
     values:
       image: /assets/img/og/og-default.webp
+      image_width: 950
+      image_height: 630
+      image_alt: "ElArk's Blog"
 
 # Staticman & reCAPTCHA
 # Set this to your Modal web endpoint base URL (no trailing slash)

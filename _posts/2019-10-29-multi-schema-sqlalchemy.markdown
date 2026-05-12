@@ -4,6 +4,7 @@ title: "Multi-schema Postgres database handling through SQLAlchemy"
 date: 2020-01-20
 permalink: /multi-schema-sqlalchemy
 image: /assets/img/og/multi-schema-sqlalchemy.webp
+image_alt: "Multi-schema Postgres database accessed through SQLAlchemy illustration"
 categories:
   - "database"
   - "postgres"

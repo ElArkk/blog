@@ -4,6 +4,7 @@ title: "Setting up Staticman for self-hosted comments"
 date: 2020-03-18
 permalink: /staticman-setup
 image: /assets/img/og/staticman-setup.webp
+image_alt: "Staticman self-hosted comment system setup illustration"
 categories:
   - "webdev"
   - "python"

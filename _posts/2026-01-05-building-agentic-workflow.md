@@ -4,6 +4,7 @@ title: "Building an Agentic Company Risk Assessment Workflow"
 date: 2026-01-05
 permalink: /building-agentic-workflow
 image: /assets/img/og/building-agentic-workflow.webp
+image_alt: "Agentic company risk-assessment workflow illustration"
 categories:
   - "agentic"
   - "python"

@@ -5,6 +5,9 @@ _site
 .jekyll-metadata
 vendor
 
+# Local working notes (Claude Code workflow)
+tasks/
+
 # Dependencies
 node_modules
 .pixi/

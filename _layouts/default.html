@@ -51,6 +51,34 @@
     });
   </script>
 
+  <script type="speculationrules">
+  {
+    "prerender": [{
+      "source": "document",
+      "where": {
+        "and": [
+          { "href_matches": "{{ site.baseurl }}/*" },
+          { "not": { "href_matches": "{{ site.baseurl }}/feed.xml" } },
+          { "not": { "selector_matches": "[rel~=\"external\"]" } },
+          { "not": { "selector_matches": "[target=\"_blank\"]" } }
+        ]
+      },
+      "eagerness": "moderate"
+    }],
+    "prefetch": [{
+      "source": "document",
+      "where": {
+        "and": [
+          { "href_matches": "{{ site.baseurl }}/*" },
+          { "not": { "selector_matches": "[rel~=\"external\"]" } },
+          { "not": { "selector_matches": "[target=\"_blank\"]" } }
+        ]
+      },
+      "eagerness": "conservative"
+    }]
+  }
+  </script>
+
 </body>
 
 </html>

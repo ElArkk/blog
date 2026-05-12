@@ -4,6 +4,7 @@ title: "Why I Built My Own AI Assistant Instead of Adopting an Omnipotent Agent"
 date: 2026-02-01
 permalink: /building-your-own-ai-tools
 image: /assets/img/og/building-your-own-ai-tools.webp
+image_alt: "Custom AI assistant scoped to a personal notes vault illustration"
 categories:
   - "note-taking"
   - "obsidian"

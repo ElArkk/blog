@@ -19,14 +19,13 @@
 # in the templates via {{ site.myvariable }}.
 
 title: ElArk's Blog
-email: arkadij dot kummer at gmail dot com
 description: >- # this means to ignore newlines until "baseurl:"
     Biological data scientist turned ML engineer. Writing about machine learning,
     software engineering, and sometimes about other matters.
 baseurl: "/blog" # the subpath of your site, e.g. /blog
 url: "https://elarkk.github.io" # the base hostname & protocol for your site, e.g. http://example.com
 author: Arkadij Kummer
-twitter_username: ElArkkk
+twitter_username: ArkadijBollwerk
 github_username: ElArkk
 
 # Google Analytics 4 measurement ID. Only loaded when JEKYLL_ENV=production

@@ -54,7 +54,9 @@ layout: default
 		{% endfor %}
 
 		{% if sameTagCount >= minCommonTags %}
+		{% if maxRelatedCounter == 0 %}
 		<h4>Related Posts</h4>
+		{% endif %}
 		<div>
 			<h5><a href="{{ site.baseurl }}{{ post.url }}">{{ post.title }}</a> {{ commonTags }}</h5>
 		</div>

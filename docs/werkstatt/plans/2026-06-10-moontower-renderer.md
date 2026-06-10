@@ -111,7 +111,7 @@ test("dateOfDay offsets ISO dates", () => {
 
 - [ ] **Step 3: Run tests to verify they fail**
 
-Run: `node --test test/tower/`
+Run: `node --test "test/tower/**/*.mjs"`
 Expected: FAIL — cannot find module `assets/js/tower/replay.js`
 
 - [ ] **Step 4: Write the implementation**
@@ -172,7 +172,7 @@ export function dateOfDay(startIso, dayIndex) {
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `node --test test/tower/`
+Run: `node --test "test/tower/**/*.mjs"`
 Expected: 7 pass
 
 - [ ] **Step 6: Commit**
@@ -225,7 +225,7 @@ test("propsAvailableOn date-gates the library", () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `node --test test/tower/`
+Run: `node --test "test/tower/**/*.mjs"`
 Expected: replay tests pass, props tests FAIL — cannot find module `props.js`
 
 - [ ] **Step 3: Write the implementation**
@@ -504,7 +504,7 @@ export const PROPS = [
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `node --test test/tower/`
+Run: `node --test "test/tower/**/*.mjs"`
 Expected: 10 pass
 
 - [ ] **Step 5: Commit**
@@ -936,7 +936,7 @@ function addMilestones(height) {
 
 - [ ] **Step 3: Verify in the browser**
 
-Reload `http://127.0.0.1:4000/blog/tower/?demo=120` and screenshot. Expected: levels now carry neon signs (some flickering), AC units, antennas, laundry, tiny people on roof edges; a few levels show dark scorch patches with rising smoke; a cloud band around level 30 and a balloon near 60. Scroll along the full tower — no prop floats detached from its level (placement bug if so). `node --test test/tower/` still passes.
+Reload `http://127.0.0.1:4000/blog/tower/?demo=120` and screenshot. Expected: levels now carry neon signs (some flickering), AC units, antennas, laundry, tiny people on roof edges; a few levels show dark scorch patches with rising smoke; a cloud band around level 30 and a balloon near 60. Scroll along the full tower — no prop floats detached from its level (placement bug if so). `node --test "test/tower/**/*.mjs"` still passes.
 
 - [ ] **Step 4: Commit**
 
@@ -1063,7 +1063,7 @@ With jekyll serving, open `http://127.0.0.1:4000/blog/tower/` (no `?demo`):
 - [ ] **Step 3: Run all tests, merge, publish**
 
 ```bash
-node --test test/tower/
+node --test "test/tower/**/*.mjs"
 git checkout gh-pages && git merge tower
 git push origin gh-pages
 ```

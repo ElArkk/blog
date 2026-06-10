@@ -8,7 +8,7 @@
 
 **Tech Stack:** Three.js 0.160 via CDN importmap, vanilla ES modules, `node --test` for pure logic, Jekyll (existing site, no build changes).
 
-**Working directory:** `~/git/blog`, branch `tower` (pushing `main` publishes the site — merge only after final verification).
+**Working directory:** `~/git/blog`, branch `tower`, branched from the default branch **`gh-pages`** (pushing `gh-pages` publishes the site — merge only after final verification).
 
 **Visual verification:** every visual task ends with a screenshot check. Serve with `bundle exec jekyll serve` → `http://127.0.0.1:4000/blog/tower/?demo=120`. Take screenshots with the chrome-devtools MCP tools if available, else:
 
@@ -1064,8 +1064,8 @@ With jekyll serving, open `http://127.0.0.1:4000/blog/tower/` (no `?demo`):
 
 ```bash
 node --test test/tower/
-git checkout main && git merge tower
-git push origin main
+git checkout gh-pages && git merge tower
+git push origin gh-pages
 ```
 
 **Confirm with Arkadij before pushing** — the push publishes the page. After GitHub Pages builds (~2 min), verify `https://elarkk.github.io/blog/tower/` renders the live tower with no CORS error in the console, and that the page is absent from `https://elarkk.github.io/blog/sitemap.xml`.

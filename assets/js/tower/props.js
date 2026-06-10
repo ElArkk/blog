@@ -1,5 +1,16 @@
-// Hand-built low-poly prop library. Levels only draw from props whose
-// addedOn date is <= the level's real date (date-gating per spec).
+// Hand-built low-poly prop library for the Moontower renderer.
+//
+// Prop contract (main.js relies on this; follow it when adding props):
+// - { name, addedOn, mount: "wall"|"roof"|"ledge", weight, build }
+// - build(T, rand) -> T.Group with its origin at the mount point; the
+//   caller (main.js) positions and orients the group on the level.
+// - Animated props set group.userData.tick = (t) => {} (t = seconds).
+// - RNG boundary: `rand` (seeded, deterministic) is for BUILD-TIME
+//   structure only; Math.random() is for FRAME-TIME animation only.
+//   Never call `rand` inside a tick closure — structure must replay
+//   identically on every page load.
+// - addedOn date-gates the prop: levels only use props that existed on
+//   the level's real date, so old floors never change as this list grows.
 
 export const NEON = [0xff2d78, 0x00e5ff, 0x9d4dff, 0x00ff9c, 0xffb300];
 
@@ -27,13 +38,14 @@ function pickNeon(rand) {
   return NEON[Math.floor(rand() * NEON.length)];
 }
 
-function flicker(mesh, rand, offRate = 0.01) {
+function flicker(mesh, offRate = 0.01) {
+  // Frame-time animation: Math.random() only (see RNG boundary above).
   let cool = 0;
   return () => {
     if (cool-- > 0) return;
     if (Math.random() < offRate) {
       mesh.visible = !mesh.visible;
-      cool = mesh.visible ? 0 : 4 + Math.floor(rand() * 6);
+      cool = mesh.visible ? 0 : 4 + Math.floor(Math.random() * 6);
     } else if (!mesh.visible) {
       mesh.visible = true;
     }
@@ -48,11 +60,13 @@ export const PROPS = [
     weight: 3,
     build(T, rand) {
       const g = new T.Group();
-      const sign = glow(T, 0.5 + rand() * 1.1, 0.4 + rand() * 0.5, pickNeon(rand));
-      const backing = box(T, sign.geometry.parameters.width + 0.1, sign.geometry.parameters.height + 0.1, 0.06, 0x16161f);
+      const w = 0.5 + rand() * 1.1;
+      const h = 0.4 + rand() * 0.5;
+      const sign = glow(T, w, h, pickNeon(rand));
+      const backing = box(T, w + 0.1, h + 0.1, 0.06, 0x16161f);
       backing.position.z = -0.04;
       g.add(backing, sign);
-      g.userData.tick = flicker(sign, rand);
+      g.userData.tick = flicker(sign);
       return g;
     },
   },
@@ -175,7 +189,7 @@ export const PROPS = [
       const front = glow(T, 0.2, 0.42, pickNeon(rand));
       front.position.set(0, 0.32, 0.151);
       g.add(body, front);
-      g.userData.tick = flicker(front, rand, 0.004);
+      g.userData.tick = flicker(front, 0.004);
       return g;
     },
   },
@@ -198,7 +212,7 @@ export const PROPS = [
       const lantern = glow(T, 0.1, 0.16, 0xffb300);
       lantern.position.set(0.3, 0.55, 0.24);
       g.add(counter, roofTop, lantern);
-      g.userData.tick = flicker(lantern, rand, 0.003);
+      g.userData.tick = flicker(lantern, 0.003);
       return g;
     },
   },
@@ -241,7 +255,7 @@ export const PROPS = [
       const lamp = glow(T, 0.05, 0.08, 0xffb300);
       lamp.position.set(0, 0.16, 0.13);
       g.add(base, houseBox, roofBox, lamp);
-      g.userData.tick = flicker(lamp, rand, 0.002);
+      g.userData.tick = flicker(lamp, 0.002);
       return g;
     },
   },

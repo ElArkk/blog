@@ -17,12 +17,16 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(SKY);
 scene.fog = new THREE.Fog(SKY, 10, 34);
-const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 300);
+// far plane reaches the moon (~level 365 * LEVEL_H) so the goal is always visible
+const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 1200);
 
 const ticks = []; // per-frame animation callbacks: fn(t)
 let topY = LEVEL_H; // camera clamp ceiling, set by buildWorld
 
-init();
+init().catch((err) => {
+  console.error(err);
+  document.getElementById("hud").textContent = "moontower failed to start — see console";
+});
 
 async function init() {
   scene.add(new THREE.HemisphereLight(0x8888bb, 0x10101c, 0.9));
@@ -36,7 +40,7 @@ async function init() {
   setupCameraControls();
   resize();
   addEventListener("resize", resize);
-  requestAnimationFrame(frame);
+  schedule();
 }
 
 // --- state ---
@@ -44,7 +48,8 @@ async function init() {
 async function loadState() {
   const demo = new URLSearchParams(location.search).get("demo");
   if (demo) {
-    const results = demoResults(parseInt(demo, 10) || 60, 1);
+    const n = Math.min(parseInt(demo, 10) || 60, 2000);
+    const results = demoResults(n, 1);
     const r = replay(results);
     return { start: "2026-01-01", results, height: r.height, streak: 0, best: 0, demo: true };
   }
@@ -52,12 +57,22 @@ async function loadState() {
     const res = await fetch(STATE_URL);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const state = await res.json();
-    localStorage.setItem("moontower-state", JSON.stringify(state));
+    try {
+      localStorage.setItem("moontower-state", JSON.stringify(state));
+    } catch {
+      // quota error — fresh state is still valid, just not cached
+    }
     return state;
   } catch (err) {
     console.warn("state fetch failed, using cache", err);
     const cached = localStorage.getItem("moontower-state");
-    if (cached) return { ...JSON.parse(cached), offline: true };
+    if (cached) {
+      try {
+        return { ...JSON.parse(cached), offline: true };
+      } catch {
+        // corrupt cache — fall through to empty state
+      }
+    }
     return { start: null, results: "", height: 0, streak: 0, best: 0, offline: true };
   }
 }
@@ -66,9 +81,12 @@ function updateHud(state) {
   const hud = document.getElementById("hud");
   const off = state.offline ? ' <span class="offline">[offline]</span>' : "";
   const demo = state.demo ? " [demo]" : "";
+  const h = Number(state.height) || 0;
+  const s = Number(state.streak) || 0;
+  const b = Number(state.best) || 0;
   hud.innerHTML =
-    `HEIGHT ${state.height ?? 0} &nbsp; STREAK ${state.streak ?? 0} ` +
-    `&nbsp; BEST ${state.best ?? 0} &nbsp; MOON AT ${MOON_LEVEL}${demo}${off}`;
+    `HEIGHT ${h} &nbsp; STREAK ${s} ` +
+    `&nbsp; BEST ${b} &nbsp; MOON AT ${MOON_LEVEL}${demo}${off}`;
 }
 
 // --- world ---
@@ -168,6 +186,10 @@ function setupCameraControls() {
   addEventListener("pointerdown", (e) => (dragging = e.clientY));
   addEventListener("pointerup", () => (dragging = null));
   addEventListener("pointermove", (e) => {
+    if (dragging !== null && !e.buttons) {
+      dragging = null;
+      return;
+    }
     if (dragging !== null) {
       camY = Math.min(Math.max(camY + (e.clientY - dragging) * 0.05, 2), topY + 6);
       dragging = e.clientY;
@@ -183,14 +205,19 @@ function resize() {
   camera.updateProjectionMatrix();
 }
 
-let paused = false;
+let rafId = 0;
+
+function schedule() {
+  if (!rafId) rafId = requestAnimationFrame(frame);
+}
+
 document.addEventListener("visibilitychange", () => {
-  paused = document.hidden;
-  if (!paused) requestAnimationFrame(frame);
+  if (!document.hidden) schedule();
 });
 
 function frame(ms) {
-  if (paused) return;
+  rafId = 0;
+  if (document.hidden) return;
   const t = ms / 1000;
   camAngle = t * 0.06;
   const r = 13;
@@ -198,5 +225,5 @@ function frame(ms) {
   camera.lookAt(0, camY, 0);
   for (const tick of ticks) tick(t);
   renderer.render(scene, camera);
-  requestAnimationFrame(frame);
+  schedule();
 }

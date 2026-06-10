@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>moontower</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #141020; overflow: hidden; }
+  #tower-canvas { width: 100vw; height: 100vh; display: block; image-rendering: pixelated; }
+  #hud {
+    position: fixed; top: 12px; left: 14px; color: #b8b8d0;
+    font: 13px/1.5 ui-monospace, Menlo, monospace; user-select: none;
+    text-shadow: 0 1px 2px #000;
+  }
+  #hud .offline { color: #ffb300; }
+</style>
+</head>
+<body>
+<canvas id="tower-canvas"></canvas>
+<div id="hud"></div>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module" src="/blog/assets/js/tower/main.js"></script>
+</body>
+</html>

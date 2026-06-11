@@ -14,13 +14,19 @@
     text-shadow: 0 1px 2px #000;
   }
   #hud .offline { color: #ffb300; }
+  #hud-hint {
+    position: fixed; bottom: 12px; left: 14px; color: #6a6a85;
+    font: 11px/1.4 ui-monospace, Menlo, monospace; user-select: none;
+    text-shadow: 0 1px 2px #000;
+  }
 </style>
 </head>
 <body>
 <canvas id="tower-canvas"></canvas>
 <div id="hud"></div>
+<div id="hud-hint">drag orbit · scroll zoom · shift+scroll or ↑↓ climb · right-drag pan</div>
 <script type="importmap">
-{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }
 </script>
 <script type="module" src="/blog/assets/js/tower/main.js"></script>
 </body>

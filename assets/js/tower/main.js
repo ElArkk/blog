@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { replay, demoResults, mulberry32, dateOfDay } from "./replay.js";
 import { PROPS, NEON, propsAvailableOn } from "./props.js";
 
@@ -22,6 +23,7 @@ const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 1200);
 
 const ticks = []; // per-frame animation callbacks: fn(t)
 let topY = LEVEL_H; // camera clamp ceiling, set by buildWorld
+let controls; // OrbitControls, created in setupControls after buildWorld
 
 // window-light grids: one InstancedMesh per level, shared geometry/material
 const windowMeshes = []; // { mesh, y } — registry for the ambient flicker tick
@@ -49,7 +51,7 @@ async function init() {
   const state = await loadState();
   buildWorld(state);
   updateHud(state);
-  setupCameraControls();
+  setupControls();
   resize();
   addEventListener("resize", resize);
   // freeze static matrices: only objects whose tick mutates their LOCAL
@@ -405,7 +407,7 @@ function windowFlickerTick() {
   return (t) => {
     if (t < next) return;
     next = t + 0.4 + Math.random() * 0.25;
-    const near = windowMeshes.filter((wm) => Math.abs(wm.y - camY) < 18);
+    const near = windowMeshes.filter((wm) => Math.abs(wm.y - camera.position.y) < 18);
     if (!near.length) return;
     const { mesh } = near[Math.floor(Math.random() * near.length)];
     const i = Math.floor(Math.random() * mesh.count);
@@ -642,7 +644,7 @@ function addAmbient(height) {
   ticks.push((t) => {
     for (let i = 0; i < RAIN; i++) {
       const s = seeds[i];
-      const y = camY + 14 - ((t * s.sp + s.off) % 28);
+      const y = camera.position.y + 14 - ((t * s.sp + s.off) % 28);
       rp[i * 6] = s.x; rp[i * 6 + 1] = y; rp[i * 6 + 2] = s.z;
       rp[i * 6 + 3] = s.x; rp[i * 6 + 4] = y - 0.5; rp[i * 6 + 5] = s.z;
     }
@@ -696,27 +698,41 @@ function addMoonAndStars(height) {
 
 // --- camera + loop ---
 
-let camY = 6;
-let camAngle = 0;
+function setupControls() {
+  controls = new OrbitControls(camera, canvas);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.minDistance = 3;
+  controls.maxDistance = 30; // fog starts eating the world at ~34
+  controls.autoRotate = true;
+  controls.autoRotateSpeed = 0.5;
+  controls.screenSpacePanning = true; // vertical pan moves along camera-up = climbs
+  controls.keyPanSpeed = 30;
+  controls.listenToKeyEvents(window); // arrow keys pan/climb
+  // start near the top, like the old fixed orbit did
+  controls.target.set(0, Math.max(4, topY - 2), 0);
+  camera.position.set(14, controls.target.y + 1, 0);
 
-function setupCameraControls() {
-  camY = Math.max(4, topY - 2);
-  addEventListener("wheel", (e) => {
-    camY = Math.min(Math.max(camY + e.deltaY * 0.02, 2), topY + 6);
-  }, { passive: true });
+  // shift+scroll climbs the tower (capture phase beats OrbitControls' zoom)
+  canvas.addEventListener(
+    "wheel",
+    (e) => {
+      if (!e.shiftKey) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      const dy = (e.deltaY || e.deltaX) * 0.03; // some platforms remap shift+wheel to deltaX
+      controls.target.y -= dy;
+      camera.position.y -= dy;
+    },
+    { capture: true, passive: false }
+  );
 
-  let dragging = null;
-  addEventListener("pointerdown", (e) => (dragging = e.clientY));
-  addEventListener("pointerup", () => (dragging = null));
-  addEventListener("pointermove", (e) => {
-    if (dragging !== null && !e.buttons) {
-      dragging = null;
-      return;
-    }
-    if (dragging !== null) {
-      camY = Math.min(Math.max(camY + (e.clientY - dragging) * 0.05, 2), topY + 6);
-      dragging = e.clientY;
-    }
+  // idle auto-orbit: pause on interaction, resume after 15s of quiet
+  let idleTimer = 0;
+  controls.addEventListener("start", () => {
+    controls.autoRotate = false;
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => { controls.autoRotate = true; }, 15000);
   });
 }
 
@@ -742,10 +758,16 @@ function frame(ms) {
   rafId = 0;
   if (document.hidden) return;
   const t = ms / 1000;
-  camAngle = t * 0.06;
-  const r = 14;
-  camera.position.set(Math.sin(camAngle) * r, camY + Math.sin(t * 0.4) * 0.4, Math.cos(camAngle) * r);
-  camera.lookAt(0, camY, 0);
+  controls.update();
+  // clamp the pan target so the camera can't fly away from the tower;
+  // shift the camera by the same correction so the view doesn't tilt
+  const tx = Math.min(Math.max(controls.target.x, -10), 10);
+  const ty = Math.min(Math.max(controls.target.y, 1), topY + 8);
+  const tz = Math.min(Math.max(controls.target.z, -10), 10);
+  camera.position.x += tx - controls.target.x;
+  camera.position.y += ty - controls.target.y;
+  camera.position.z += tz - controls.target.z;
+  controls.target.set(tx, ty, tz);
   for (const tick of ticks) tick(t);
   renderer.render(scene, camera);
   schedule();

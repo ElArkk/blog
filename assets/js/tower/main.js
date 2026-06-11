@@ -23,6 +23,18 @@ const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 1200);
 const ticks = []; // per-frame animation callbacks: fn(t)
 let topY = LEVEL_H; // camera clamp ceiling, set by buildWorld
 
+// window-light grids: one InstancedMesh per level, shared geometry/material
+const windowMeshes = []; // { mesh, y } — registry for the ambient flicker tick
+const WINDOW_GEO = new THREE.BoxGeometry(0.14, 0.2, 0.03);
+const WINDOW_MAT = new THREE.MeshBasicMaterial({ color: 0xffffff }); // tinted per instance
+const WINDOW_LIT_RATE = 0.4;
+const WINDOW_DARK = 0x12121c;
+
+function windowColor(r) {
+  // r in [0,1): weighted toward warm amber, then pale cyan, then off-white
+  return r < 0.55 ? 0xffb36b : r < 0.8 ? 0x9adfff : 0xfff2cc;
+}
+
 init().catch((err) => {
   console.error(err);
   document.getElementById("hud").textContent = "moontower failed to start — see console";
@@ -40,6 +52,16 @@ async function init() {
   setupCameraControls();
   resize();
   addEventListener("resize", resize);
+  // freeze static matrices: only objects whose tick mutates their LOCAL
+  // transform carry userData.animated. Children of animated groups stay
+  // frozen too — three.js still refreshes their world matrices when the
+  // parent moves.
+  scene.traverse((o) => {
+    if (!o.userData.animated) {
+      o.matrixAutoUpdate = false;
+      o.updateMatrix();
+    }
+  });
   schedule();
 }
 
@@ -106,6 +128,7 @@ function buildWorld(state) {
   for (let i = 0; i < levels.length; i++) {
     scene.add(buildLevel(levels[i], i, state.start));
   }
+  if (windowMeshes.length) ticks.push(windowFlickerTick());
   addMilestones(levels.length);
   addAmbient(levels.length);
 
@@ -124,13 +147,23 @@ function buildLevel(level, index, startIso) {
       color: new THREE.Color().setHSL(hue, 0.22, 0.13 + rand() * 0.1),
     });
 
-  // main massing block: wide size spread + staggered stacking offset
+  // main massing block: irregular extruded floor plan + staggered stacking offset
   const w = LEVEL_W * (0.6 + rand() * 0.7);
   const d = LEVEL_D * (0.6 + rand() * 0.7);
   const offX = (rand() - 0.5) * 0.8;
   const offZ = (rand() - 0.5) * 0.8;
-  const slab = new THREE.Mesh(new THREE.BoxGeometry(w, LEVEL_H * 0.94, d), slabMat());
-  slab.position.set(offX, LEVEL_H / 2, offZ);
+  const { poly, edges } = buildOutline(w, d, offX, offZ, rand);
+  const shape = new THREE.Shape();
+  shape.moveTo(poly[0][0], poly[0][1]);
+  for (let i = 1; i < poly.length; i++) shape.lineTo(poly[i][0], poly[i][1]);
+  const slab = new THREE.Mesh(
+    new THREE.ExtrudeGeometry(shape, { depth: LEVEL_H * 0.94, bevelEnabled: false }),
+    slabMat()
+  );
+  // shape XY lies in world XZ after this rotation; the extrusion runs straight
+  // down so the slab spans y 0.048..SLAB_TOP like the old box did
+  slab.rotation.x = Math.PI / 2;
+  slab.position.y = SLAB_TOP;
   group.add(slab);
 
   // 0-2 jut boxes half-sunk into a face: extra corners and edges
@@ -178,9 +211,209 @@ function buildLevel(level, index, startIso) {
     terrace = { x: tx, z: tz, w: tw, d: td };
   }
 
-  group.userData.size = { w, d, offX, offZ, terrace };
+  group.userData.size = { w, d, offX, offZ, terrace, edges, poly };
+  addWindows(group, edges, rand);
   decorate(group, level, rand, startIso);
   return group;
+}
+
+// Seeded irregular floor plan: the w×d rect bitten by 0-3 corner chamfers,
+// 0-2 rectangular edge notches, and an occasional L-cut (quarter bite).
+// Returns the outline as CCW points [[x,z],...] (level-local, offX/offZ
+// baked in) plus edge segments with outward normals — the placement
+// contract every wall/ledge prop and window grid relies on. With CCW
+// winding the outward normal of edge a->b is (dz, -dx)/len.
+function buildOutline(w, d, offX, offZ, rand) {
+  const hw = w / 2;
+  const hd = d / 2;
+  const C = [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]]; // corners, CCW from above
+  const U = [[1, 0], [0, 1], [-1, 0], [0, -1]]; // side i runs C[i] -> C[i+1]
+  const L = [w, d, w, d];
+  // per-corner cut: a = cutback along the incoming side, b = along the outgoing
+  const cuts = [null, null, null, null];
+
+  // occasional big L-cut: a quarter bite out of one corner
+  if (rand() < 0.2) {
+    const ci = Math.floor(rand() * 4);
+    cuts[ci] = {
+      a: (0.3 + rand() * 0.2) * L[(ci + 3) % 4],
+      b: (0.3 + rand() * 0.2) * L[ci],
+      kind: "L",
+    };
+  }
+
+  // 0-3 chamfers on distinct corners (an L-cut corner keeps its L-cut)
+  const order = [0, 1, 2, 3];
+  for (let i = 3; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  const chams = Math.floor(rand() * 4);
+  for (let k = 0; k < chams; k++) {
+    const ci = order[k];
+    if (cuts[ci]) continue;
+    const c = 0.3 + rand() * 0.6;
+    cuts[ci] = { a: c, b: c, kind: "cham" };
+  }
+
+  // 0-2 rectangular notches bitten into the side faces
+  const notches = [[], [], [], []];
+  const nNot = Math.floor(rand() * 3);
+  for (let k = 0; k < nNot; k++) {
+    const si = Math.floor(rand() * 4);
+    const half = (0.4 + rand() * 0.6) / 2;
+    const depth = 0.3 + rand() * 0.3;
+    const roll = rand();
+    // reserve at least the max notch depth (0.6) from each corner so notches
+    // on adjacent sides can never reach each other across the corner
+    const lo = Math.max(cuts[si] ? cuts[si].b : 0, 0.6) + half + 0.08;
+    const hi = L[si] - Math.max(cuts[(si + 1) % 4] ? cuts[(si + 1) % 4].a : 0, 0.6) - half - 0.08;
+    if (hi <= lo) continue; // side too consumed — skip, draws stay deterministic
+    const pos = lo + roll * (hi - lo);
+    if (notches[si].some((n) => Math.abs(n.pos - pos) < n.half + half + 0.08)) continue;
+    notches[si].push({ pos, half, depth });
+  }
+  for (const list of notches) list.sort((a, b) => a.pos - b.pos);
+
+  const poly = [];
+  for (let i = 0; i < 4; i++) {
+    const cut = cuts[i];
+    const [cx, cz] = C[i];
+    const [ox, oz] = U[i]; // outgoing side direction
+    const [ix, iz] = U[(i + 3) % 4]; // incoming side direction
+    if (cut && cut.kind === "L") {
+      poly.push([cx - ix * cut.a, cz - iz * cut.a]);
+      poly.push([cx - ix * cut.a + ox * cut.b, cz - iz * cut.a + oz * cut.b]);
+      poly.push([cx + ox * cut.b, cz + oz * cut.b]);
+    } else if (cut) {
+      poly.push([cx - ix * cut.a, cz - iz * cut.a]);
+      poly.push([cx + ox * cut.b, cz + oz * cut.b]);
+    } else {
+      poly.push([cx, cz]);
+    }
+    for (const nt of notches[i]) {
+      const [nx, nz] = U[(i + 1) % 4]; // inward normal of side i
+      const x1 = cx + ox * (nt.pos - nt.half);
+      const z1 = cz + oz * (nt.pos - nt.half);
+      const x2 = cx + ox * (nt.pos + nt.half);
+      const z2 = cz + oz * (nt.pos + nt.half);
+      poly.push([x1, z1]);
+      poly.push([x1 + nx * nt.depth, z1 + nz * nt.depth]);
+      poly.push([x2 + nx * nt.depth, z2 + nz * nt.depth]);
+      poly.push([x2, z2]);
+    }
+  }
+
+  for (const p of poly) {
+    p[0] += offX;
+    p[1] += offZ;
+  }
+  const edges = [];
+  for (let i = 0; i < poly.length; i++) {
+    const [ax, az] = poly[i];
+    const [bx, bz] = poly[(i + 1) % poly.length];
+    const len = Math.hypot(bx - ax, bz - az);
+    if (len < 1e-4) continue;
+    edges.push({ ax, az, bx, bz, nx: (bz - az) / len, nz: -(bx - ax) / len, len });
+  }
+  return { poly, edges };
+}
+
+function pointInPolygon(x, z, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, zi] = poly[i];
+    const [xj, zj] = poly[j];
+    if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+// Rejection-sample a point inside the floor polygon: up to 8 seeded tries
+// against the (inset) bounding rect, centroid fallback. Consumption varies
+// but stays deterministic — the polygon itself is seeded.
+function randomPointInside(size, rand, inset = 0.3) {
+  const { w, d, offX, offZ, poly } = size;
+  const hx = Math.max(w / 2 - inset, 0.2);
+  const hz = Math.max(d / 2 - inset, 0.2);
+  for (let i = 0; i < 8; i++) {
+    const x = offX + (rand() - 0.5) * 2 * hx;
+    const z = offZ + (rand() - 0.5) * 2 * hz;
+    if (pointInPolygon(x, z, poly)) return { x, z };
+  }
+  let cx = 0;
+  let cz = 0;
+  for (const p of poly) {
+    cx += p[0];
+    cz += p[1];
+  }
+  return { x: cx / poly.length, z: cz / poly.length };
+}
+
+// Seeded edge pick, weighted by length; edges shorter than minLen are
+// skipped (longest-edge fallback if nothing qualifies).
+function pickEdge(edges, rand, minLen = 0.5) {
+  let usable = edges.filter((e) => e.len >= minLen);
+  if (!usable.length) usable = [edges.reduce((a, b) => (a.len >= b.len ? a : b))];
+  const total = usable.reduce((s, e) => s + e.len, 0);
+  let roll = rand() * total;
+  for (const e of usable) if ((roll -= e.len) <= 0) return e;
+  return usable[usable.length - 1];
+}
+
+// Two rows of window lights along every outline edge long enough to hold
+// them — one InstancedMesh per level keeps it one draw call.
+function addWindows(group, edges, rand) {
+  const slots = [];
+  for (const e of edges) {
+    if (e.len <= 0.8) continue;
+    const cols = Math.floor(e.len / 0.34);
+    const ux = (e.bx - e.ax) / e.len;
+    const uz = (e.bz - e.az) / e.len;
+    const ry = Math.atan2(e.nx, e.nz);
+    const pad = (e.len - (cols - 1) * 0.34) / 2;
+    for (let i = 0; i < cols; i++) {
+      const x = e.ax + ux * (pad + i * 0.34) + e.nx * 0.02;
+      const z = e.az + uz * (pad + i * 0.34) + e.nz * 0.02;
+      slots.push({ x, y: 0.55, z, ry }, { x, y: 1.05, z, ry });
+    }
+  }
+  if (slots.length > 90) slots.length = 90; // deterministic truncation
+  if (!slots.length) return;
+
+  const mesh = new THREE.InstancedMesh(WINDOW_GEO, WINDOW_MAT, slots.length);
+  const m = new THREE.Matrix4();
+  const color = new THREE.Color();
+  for (let i = 0; i < slots.length; i++) {
+    const s = slots[i];
+    m.makeRotationY(s.ry);
+    m.setPosition(s.x, s.y, s.z);
+    mesh.setMatrixAt(i, m);
+    const roll = rand();
+    color.setHex(roll < WINDOW_LIT_RATE ? windowColor(roll / WINDOW_LIT_RATE) : WINDOW_DARK);
+    mesh.setColorAt(i, color);
+  }
+  group.add(mesh);
+  windowMeshes.push({ mesh, y: group.position.y });
+}
+
+// Ambient life: every ~0.5s one window near the camera flips lit/dark.
+// Frame-time only, so Math.random is allowed (see the props.js RNG contract).
+function windowFlickerTick() {
+  const c = new THREE.Color();
+  let next = 0;
+  return (t) => {
+    if (t < next) return;
+    next = t + 0.4 + Math.random() * 0.25;
+    const near = windowMeshes.filter((wm) => Math.abs(wm.y - camY) < 18);
+    if (!near.length) return;
+    const { mesh } = near[Math.floor(Math.random() * near.length)];
+    const i = Math.floor(Math.random() * mesh.count);
+    mesh.getColorAt(i, c);
+    c.setHex(c.r > 0.3 ? WINDOW_DARK : windowColor(Math.random()));
+    mesh.setColorAt(i, c);
+    mesh.instanceColor.needsUpdate = true;
+  };
 }
 
 function decorate(group, level, rand, startIso) {
@@ -188,7 +421,7 @@ function decorate(group, level, rand, startIso) {
   const levelDate = startIso ? dateOfDay(startIso, level.day) : "2026-06-10";
   const available = propsAvailableOn(PROPS, levelDate);
   const totalWeight = available.reduce((s, p) => s + p.weight, 0);
-  const count = totalWeight ? 2 + Math.floor(rand() * 4) : 0;
+  const count = totalWeight ? 3 + Math.floor(rand() * 5) : 0;
 
   for (let i = 0; i < count; i++) {
     let roll = rand() * totalWeight;
@@ -222,62 +455,51 @@ function placeOnTerrace(obj, t, rand) {
 }
 
 function placeProp(obj, mount, size, rand) {
-  const { w, d, offX, offZ, terrace } = size;
-  if (mount === "ledge" && terrace) {
-    placeOnTerrace(obj, terrace, rand);
+  if (mount === "ledge" && size.terrace) {
+    placeOnTerrace(obj, size.terrace, rand);
     return;
   }
-  const side = Math.floor(rand() * 4); // 0 +z, 1 -z, 2 +x, 3 -x
-  const along = (rand() - 0.5) * (side < 2 ? w - 1 : d - 1);
   if (mount === "roof") {
-    obj.position.set(
-      offX + (rand() - 0.5) * (w - 0.6),
-      SLAB_TOP,
-      offZ + (rand() - 0.5) * (d - 0.6)
-    );
+    const p = randomPointInside(size, rand);
+    obj.position.set(p.x, SLAB_TOP, p.z);
     obj.rotation.y = rand() * Math.PI * 2;
     return;
   }
-  const y = mount === "wall" ? LEVEL_H * (0.35 + rand() * 0.4) : SLAB_TOP;
-  if (side === 0) {
-    obj.position.set(offX + along, y, offZ + d / 2 + 0.03);
-  } else if (side === 1) {
-    obj.position.set(offX + along, y, offZ - d / 2 - 0.03);
-    obj.rotation.y = Math.PI;
-  } else if (side === 2) {
-    obj.position.set(offX + w / 2 + 0.03, y, offZ + along);
-    obj.rotation.y = Math.PI / 2;
+  // wall + terrace-less ledge props hang off a real outline edge so nothing
+  // floats over chamfered/notched air
+  const e = pickEdge(size.edges, rand);
+  const m = Math.min(0.4, 0.45 / e.len);
+  const t = m + rand() * (1 - 2 * m);
+  const x = e.ax + (e.bx - e.ax) * t;
+  const z = e.az + (e.bz - e.az) * t;
+  if (mount === "wall") {
+    obj.position.set(x + e.nx * 0.04, LEVEL_H * (0.35 + rand() * 0.4), z + e.nz * 0.04);
+    obj.rotation.y = Math.atan2(e.nx, e.nz); // +z faces along the outward normal
   } else {
-    obj.position.set(offX - w / 2 - 0.03, y, offZ + along);
-    obj.rotation.y = -Math.PI / 2;
-  }
-  if (mount === "ledge") {
-    // no terrace on this level: tuck the prop back onto the roof edge,
-    // facing the roof interior
-    obj.position.x = offX + (obj.position.x - offX) * 0.82;
-    obj.position.z = offZ + (obj.position.z - offZ) * 0.82;
-    obj.position.y = SLAB_TOP;
-    obj.rotation.y += Math.PI;
+    // no terrace on this level: perch on the roof edge, facing the interior
+    obj.position.set(x - e.nx * 0.3, SLAB_TOP, z - e.nz * 0.3);
+    obj.rotation.y = Math.atan2(-e.nx, -e.nz);
   }
 }
 
 function addScar(group, size, missDay) {
-  const { w, d, offX, offZ } = size;
   const rand = mulberry32(missDay * 7919 + 13);
-  // scorch patches on the roof edge + one dangling rebar
+  // scorch patches on the roof + one dangling rebar, all inside the outline
   for (let i = 0; i < 3; i++) {
     const patch = new THREE.Mesh(
       new THREE.BoxGeometry(0.3 + rand() * 0.6, 0.06, 0.3 + rand() * 0.6),
       new THREE.MeshLambertMaterial({ color: 0x0c0a10 })
     );
-    patch.position.set(offX + (rand() - 0.5) * (w - 0.5), SLAB_TOP + 0.03, offZ + (rand() - 0.5) * (d - 0.5));
+    const p = randomPointInside(size, rand, 0.25);
+    patch.position.set(p.x, SLAB_TOP + 0.03, p.z);
     group.add(patch);
   }
   const rebar = new THREE.Mesh(
     new THREE.CylinderGeometry(0.02, 0.02, 0.7, 4),
     new THREE.MeshLambertMaterial({ color: 0x3a3026 })
   );
-  rebar.position.set(offX + (rand() - 0.5) * w, SLAB_TOP + 0.3, offZ + (rand() - 0.5) * d);
+  const rp = randomPointInside(size, rand, 0.1);
+  rebar.position.set(rp.x, SLAB_TOP + 0.3, rp.z);
   rebar.rotation.z = 0.4 + rand() * 0.5;
   group.add(rebar);
 
@@ -288,7 +510,9 @@ function addScar(group, size, missDay) {
   const puffs = [];
   for (let i = 0; i < 3; i++) {
     const puff = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.4), smokeMat.clone());
-    puff.position.set(offX + (rand() - 0.5) * w * 0.6, LEVEL_H, offZ + (rand() - 0.5) * d * 0.6);
+    const sp = randomPointInside(size, rand, 0.5);
+    puff.position.set(sp.x, LEVEL_H, sp.z);
+    puff.userData.animated = true; // tick rises + billboards it
     group.add(puff);
     puffs.push({ puff, speed: 0.15 + rand() * 0.2, phase: rand() * 3 });
   }
@@ -343,6 +567,7 @@ function addMilestones(height) {
         new THREE.MeshLambertMaterial({ color: 0xbb4455 })
       );
       balloon.position.set(5.5, y, 2);
+      balloon.userData.animated = true; // tick bobs it
       scene.add(balloon);
       ticks.push((t) => { balloon.position.y = y + Math.sin(t * 0.5 + lvl) * 0.4; });
     } else {
@@ -351,6 +576,7 @@ function addMilestones(height) {
       const bus = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.6), new THREE.MeshLambertMaterial({ color: 0x777788 }));
       const panel = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.02, 0.5), new THREE.MeshLambertMaterial({ color: 0x2244aa }));
       sat.add(bus, panel);
+      sat.userData.animated = true; // tick orbits the group (children stay frozen)
       scene.add(sat);
       ticks.push((t) => {
         const a = t * 0.1 + lvl;
@@ -372,6 +598,7 @@ function addAmbient(height) {
     const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 6), new THREE.MeshBasicMaterial({ color: NEON[i % NEON.length] }));
     lamp.position.y = -0.05;
     drone.add(lamp);
+    drone.userData.animated = true; // tick ferries the group
     scene.add(drone);
 
     let from = wayPoint(rand, towerTop);
@@ -389,6 +616,7 @@ function addAmbient(height) {
 
   // elevator light crawling up the tower face
   const elevator = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.2, 0.05), new THREE.MeshBasicMaterial({ color: 0x00e5ff }));
+  elevator.userData.animated = true; // tick crawls it up the face
   scene.add(elevator);
   ticks.push((t) => {
     const cycle = (t * 0.05) % 2;
@@ -409,6 +637,7 @@ function addAmbient(height) {
     rainGeo,
     new THREE.LineBasicMaterial({ color: 0x445066, transparent: true, opacity: 0.5 })
   );
+  rain.userData.animated = true; // tick rewrites the geometry, not the matrix — marked to be safe
   scene.add(rain);
   ticks.push((t) => {
     for (let i = 0; i < RAIN; i++) {
@@ -436,6 +665,7 @@ function addMoonAndStars(height) {
     new THREE.SphereGeometry(1, 12, 12),
     new THREE.MeshBasicMaterial({ color: 0xd8d8c8, fog: false })
   );
+  moon.userData.animated = true; // tick keeps it camera-relative
   scene.add(moon);
   const progress = Math.min(height / MOON_LEVEL, 1);
   const dist = 220 - 140 * progress;
@@ -513,7 +743,7 @@ function frame(ms) {
   if (document.hidden) return;
   const t = ms / 1000;
   camAngle = t * 0.06;
-  const r = 13;
+  const r = 14;
   camera.position.set(Math.sin(camAngle) * r, camY + Math.sin(t * 0.4) * 0.4, Math.cos(camAngle) * r);
   camera.lookAt(0, camY, 0);
   for (const tick of ticks) tick(t);

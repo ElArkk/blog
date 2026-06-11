@@ -2,8 +2,7 @@ import * as THREE from "three";
 import { replay, demoResults, mulberry32, dateOfDay } from "./replay.js";
 import { PROPS, NEON, propsAvailableOn } from "./props.js";
 
-// Paste the URL printed by `modal deploy` for tower_state (backend plan Task 9).
-const STATE_URL = "PASTE_TOWER_STATE_URL_HERE";
+const STATE_URL = "https://elarkk--obsidian-agents-tower-state.modal.run";
 
 const LEVEL_H = 1.6;
 const LEVEL_W = 3.6;

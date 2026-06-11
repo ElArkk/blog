@@ -47,6 +47,10 @@ defaults:
       path: ""
     values:
       image: /assets/img/og/og-default.webp
+  - scope:
+      path: "tower"
+    values:
+      sitemap: false
       image_width: 950
       image_height: 630
       image_alt: "ElArk's Blog"

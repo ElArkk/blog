@@ -9,6 +9,7 @@ test("every prop has the required shape", () => {
     assert.match(p.addedOn, /^\d{4}-\d{2}-\d{2}$/);
     assert.ok(["wall", "roof", "ledge"].includes(p.mount), p.name);
     assert.ok(p.weight > 0, p.name);
+    assert.ok(p.radius > 0, p.name);
     assert.equal(typeof p.build, "function", p.name);
   }
 });

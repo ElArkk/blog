@@ -1,9 +1,12 @@
 // Hand-built low-poly prop library for the Moontower renderer.
 //
 // Prop contract (main.js relies on this; follow it when adding props):
-// - { name, addedOn, mount: "wall"|"roof"|"ledge", weight, build }
+// - { name, addedOn, mount: "wall"|"roof"|"ledge", weight, radius, build }
 // - build(T, rand) -> T.Group with its origin at the mount point; the
 //   caller (main.js) positions and orients the group on the level.
+// - radius: approximate XZ footprint (number, level-local units). main.js
+//   uses it for anti-collision placement so props don't clip; size it to the
+//   widest part of the build so neighbours keep clear.
 // - Animated props set group.userData.tick = (t) => {} (t = seconds).
 // - RNG boundary: `rand` (seeded, deterministic) is for BUILD-TIME
 //   structure only; Math.random() is for FRAME-TIME animation only.
@@ -66,6 +69,7 @@ export const PROPS = [
     addedOn: "2026-06-10",
     mount: "wall",
     weight: 3,
+    radius: 0.35,
     build(T, rand) {
       const g = new T.Group();
       const w = 0.5 + rand() * 1.1;
@@ -83,6 +87,7 @@ export const PROPS = [
     addedOn: "2026-06-10",
     mount: "wall",
     weight: 2,
+    radius: 0.5,
     build(T, rand) {
       const g = new T.Group();
       const c = pickNeon(rand);
@@ -106,6 +111,7 @@ export const PROPS = [
     addedOn: "2026-06-10",
     mount: "wall",
     weight: 3,
+    radius: 0.3,
     build(T, rand) {
       const g = new T.Group();
       const body = box(T, 0.5, 0.4, 0.3, 0x3a3a48);
@@ -123,6 +129,7 @@ export const PROPS = [
     addedOn: "2026-06-10",
     mount: "roof",
     weight: 3,
+    radius: 0.15,
     build(T, rand) {
       const g = new T.Group();
       const h = 0.9 + rand() * 0.9;
@@ -139,6 +146,7 @@ export const PROPS = [
     addedOn: "2026-06-10",
     mount: "roof",
     weight: 2,
+    radius: 0.3,
     build(T, rand) {
       const g = new T.Group();
       const dish = new T.Mesh(new T.SphereGeometry(0.28, 8, 6, 0, Math.PI), lambert(T, 0x8a8a9a, { side: T.DoubleSide }));
@@ -155,6 +163,7 @@ export const PROPS = [
     addedOn: "2026-06-10",
     mount: "wall",
     weight: 2,
+    radius: 0.15,
     build(T, rand) {
       const g = new T.Group();
       const n = 2 + Math.floor(rand() * 2);
@@ -171,6 +180,7 @@ export const PROPS = [
     addedOn: "2026-06-10",
     mount: "wall",
     weight: 2,
+    radius: 0.4,
     build(T, rand) {
       const g = new T.Group();
       const line = box(T, 1.2, 0.015, 0.015, 0x666677);
@@ -190,6 +200,7 @@ export const PROPS = [
     addedOn: "2026-06-10",
     mount: "ledge",
     weight: 2,
+    radius: 0.25,
     build(T, rand) {
       const g = new T.Group();
       const body = box(T, 0.32, 0.6, 0.3, 0x28283a);
@@ -206,6 +217,7 @@ export const PROPS = [
     addedOn: "2026-06-10",
     mount: "ledge",
     weight: 2,
+    radius: 0.45,
     build(T, rand) {
       const g = new T.Group();
       const counter = box(T, 0.7, 0.3, 0.35, 0x4a3a30);
@@ -229,38 +241,127 @@ export const PROPS = [
     addedOn: "2026-06-10",
     mount: "ledge",
     weight: 4,
+    radius: 0.35,
     build(T, rand) {
       const g = new T.Group();
+      // Dim skin-ish head tones (seeded variation): reads dark at distance.
+      const SKIN = [0x6a5a50, 0x5e4f46, 0x74604f, 0x55483f, 0x6f5a4a];
       const n = 1 + Math.floor(rand() * 4); // 1-4 figures
       const figures = [];
       for (let i = 0; i < n; i++) {
         const person = new T.Group();
-        const tall = 0.2 + rand() * 0.1; // 0.20-0.30
+        const tall = 0.2 + rand() * 0.1; // 0.20-0.30 body height (head extra)
         const broad = rand() < 0.4;
         const w = broad ? 0.09 + rand() * 0.03 : 0.06 + rand() * 0.02;
         const d = broad ? 0.06 : 0.045;
         const coat = CLOTH[Math.floor(rand() * CLOTH.length)];
+        const skin = SKIN[Math.floor(rand() * SKIN.length)];
         const sitting = rand() < 0.3;
-        const torsoH = sitting ? tall * 0.55 : tall;
-        const torso = box(T, w, torsoH, d, coat);
-        torso.position.y = torsoH / 2;
-        const head = box(T, w * 0.7, w * 0.7, w * 0.7, 0x101018); // dark silhouette
-        head.position.y = torsoH + w * 0.35;
-        person.add(torso, head);
+
+        // Vertical budget: legs -> hip -> torso -> head, sitting drops it all.
+        const legH = tall * (sitting ? 0.4 : 0.45);
+        const hipH = tall * 0.12;
+        const torsoH = tall * (sitting ? 0.5 : 0.48);
+        const headS = w * 0.72;
+        const hipY = sitting ? tall * 0.18 + hipH / 2 : legH + hipH / 2;
+        const torsoBase = hipY + hipH / 2;
+        const shoulderY = torsoBase + torsoH * 0.85;
+        const headY = torsoBase + torsoH + headS * 0.5;
+        const headTop = headY + headS * 0.5;
+
+        // Two separate legs with seeded stance; bent forward when seated.
+        const legW = w * 0.42;
+        const legL = box(T, legW, legH, d * 0.9, coat);
+        const legR = box(T, legW, legH, d * 0.9, coat);
         if (sitting) {
-          // Folded legs flush with the deck, reading as seated on the edge.
-          const legs = box(T, w, tall * 0.25, d * 1.5, coat);
-          legs.position.set(0, tall * 0.125, d * 0.9);
-          person.add(legs);
+          // Seated figures sit on a stool, so they ground anywhere on a deck
+          // (the old dangling-over-the-edge pose floated mid-air).
+          const stoolH = tall * 0.18;
+          const stool = box(T, w * 1.15, stoolH, d * 1.3, 0x4a3a30);
+          stool.position.y = stoolH / 2;
+          person.add(stool);
+          for (const [leg, sx] of [[legL, -1], [legR, 1]]) {
+            leg.position.set(sx * w * 0.22, stoolH * 0.55, d * 0.55 + legH * 0.28);
+            leg.rotation.x = -0.95 + (rand() - 0.5) * 0.15; // slope down to the deck
+          }
         } else {
-          person.rotation.z = (rand() - 0.5) * 0.18; // subtle standing lean
+          legL.position.set(-w * 0.22, legH / 2, 0);
+          legR.position.set(w * 0.22, legH / 2, 0);
+          legL.rotation.z = (rand() - 0.5) * 0.18;
+          legR.rotation.z = (rand() - 0.5) * 0.18;
         }
+
+        const hip = box(T, w, hipH, d, coat);
+        hip.position.y = hipY;
+        const torso = box(T, w, torsoH, d, coat);
+        torso.position.y = torsoBase + torsoH / 2;
+        const head = box(T, headS, headS, headS, skin);
+        head.position.y = headY;
+        person.add(legL, legR, hip, torso, head);
+
+        // Two arms on shoulder pivots. Poses are picked for silhouette
+        // legibility at 320px: hanging, one arm straight out, one raised.
+        const armW = Math.max(0.025, w * 0.28);
+        const armLen = torsoH * 0.92;
+        const hasPhone = rand() < 0.15;
+        const pose = hasPhone ? 2 : rand() < 0.55 ? 0 : rand() < 0.45 ? 1 : 2;
+        for (const sx of [-1, 1]) {
+          const pivot = new T.Group();
+          const arm = box(T, armW, armLen, armW, coat);
+          arm.position.y = -armLen / 2; // hang down from the shoulder pivot
+          pivot.add(arm);
+          pivot.position.set(sx * (w / 2 + armW * 0.4), shoulderY, 0);
+          if (pose === 1 && sx > 0) {
+            pivot.rotation.z = 1.5; // arm straight out to the side
+          } else if (pose === 2 && sx > 0) {
+            pivot.rotation.z = 2.55; // arm raised (holds the phone if any)
+          } else {
+            pivot.rotation.z = sx * -0.08; // hanging with a slight flare
+          }
+          person.add(pivot);
+        }
+
         if (rand() < 0.2) {
           // Neon accent: jacket panel or a held item.
-          const accent = glowBox(T, w * 0.55, torsoH * 0.4, d * 0.7, pickNeon(rand));
-          accent.position.set(w * 0.35, torsoH * (0.4 + rand() * 0.4), d * 0.5);
+          const accent = glowBox(T, w * 0.5, torsoH * 0.35, d * 0.6, pickNeon(rand));
+          accent.position.set(w * 0.3, torsoBase + torsoH * (0.4 + rand() * 0.4), d * 0.45);
           person.add(accent);
         }
+
+        // ~40% hat or hood, clothing-coloured (silhouette stays dark).
+        if (rand() < 0.4) {
+          let hat;
+          if (rand() < 0.5) {
+            hat = box(T, headS * 1.25, headS * 0.45, headS * 1.25, coat);
+            hat.position.y = headY + headS * 0.4;
+          } else {
+            hat = new T.Mesh(new T.CylinderGeometry(headS * 0.55, headS * 0.7, headS * 0.6, 6), lambert(T, coat));
+            hat.position.y = headY + headS * 0.2;
+          }
+          person.add(hat);
+        }
+
+        // Glowing phone in the raised hand — pale cyan, lights the face.
+        if (hasPhone) {
+          const phone = glowBox(T, 0.035, 0.05, 0.01, 0x9fefff);
+          phone.position.set(w / 2 + armW + 0.03, headY, d * 0.25);
+          person.add(phone);
+        }
+
+        // ~10% umbrella: thin shaft + cone canopy (dark or dusty red).
+        if (rand() < 0.1) {
+          const ucol = rand() < 0.5 ? 0x2a2a30 : 0x8a3a3a;
+          const top = headTop + 0.12;
+          const base = shoulderY * 0.4;
+          const shaftH = top - base;
+          const shaft = new T.Mesh(new T.CylinderGeometry(0.006, 0.006, shaftH, 6), lambert(T, 0x33333a));
+          shaft.position.set(w * 0.6, base + shaftH / 2, d * 0.3);
+          const canopy = new T.Mesh(new T.CylinderGeometry(0.001, 0.16, 0.07, 6), lambert(T, ucol));
+          canopy.position.set(w * 0.6, top, d * 0.3);
+          person.add(shaft, canopy);
+        }
+
+        if (!sitting) person.rotation.z = (rand() - 0.5) * 0.1; // subtle standing lean
         person.position.x = -0.3 + i * 0.2 + rand() * 0.08;
         person.rotation.y = rand() * Math.PI * 2;
         figures.push(person);
@@ -296,6 +397,7 @@ export const PROPS = [
     addedOn: "2026-06-10",
     mount: "roof",
     weight: 1,
+    radius: 0.25,
     build(T, rand) {
       const g = new T.Group();
       const base = box(T, 0.3, 0.08, 0.3, 0x55333a);
@@ -316,6 +418,7 @@ export const PROPS = [
     addedOn: "2026-06-10",
     mount: "roof",
     weight: 2,
+    radius: 0.1,
     build(T, rand) {
       const g = new T.Group();
       const mast = box(T, 0.04, 0.5, 0.04, 0x55556a);
@@ -335,6 +438,7 @@ export const PROPS = [
     addedOn: "2026-06-11",
     mount: "wall",
     weight: 2,
+    radius: 0.5,
     build(T, rand) {
       const g = new T.Group();
       const stripes = 2 + Math.floor(rand() * 3); // 2-4 slats
@@ -359,6 +463,7 @@ export const PROPS = [
     addedOn: "2026-06-11",
     mount: "roof",
     weight: 2,
+    radius: 0.15,
     build(T, rand) {
       const g = new T.Group();
       const ph = 0.7 + rand() * 0.6;
@@ -388,6 +493,7 @@ export const PROPS = [
     addedOn: "2026-06-11",
     mount: "wall",
     weight: 2,
+    radius: 0.2,
     build(T, rand) {
       const g = new T.Group();
       const anchor = box(T, 0.07, 0.07, 0.04, 0x202028);
@@ -408,6 +514,7 @@ export const PROPS = [
     addedOn: "2026-06-11",
     mount: "ledge",
     weight: 2,
+    radius: 0.3,
     build(T, rand) {
       const g = new T.Group();
       const cols = [0x6b4a2f, 0x7a5230, 0x3a5a6a, 0x6a6a55]; // wood / plastic

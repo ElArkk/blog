@@ -424,12 +424,13 @@ function decorate(group, level, rand, startIso) {
   const available = propsAvailableOn(PROPS, levelDate);
   const totalWeight = available.reduce((s, p) => s + p.weight, 0);
   const count = totalWeight ? 3 + Math.floor(rand() * 5) : 0;
+  const placed = []; // { x, z, y, r } footprints already claimed on this level
 
   for (let i = 0; i < count; i++) {
     let roll = rand() * totalWeight;
     const prop = available.find((p) => (roll -= p.weight) <= 0) ?? available[0];
     const obj = prop.build(THREE, rand, { w: size.w, d: size.d });
-    placeProp(obj, prop.mount, size, rand);
+    if (!placeProp(obj, prop.mount, size, rand, prop.radius, placed)) continue; // skip overlaps
     group.add(obj);
     if (obj.userData.tick) ticks.push(obj.userData.tick);
   }
@@ -439,49 +440,85 @@ function decorate(group, level, rand, startIso) {
     const people = available.find((p) => p.name === "people");
     if (people) {
       const crowd = people.build(THREE, rand, { w: size.w, d: size.d });
-      placeOnTerrace(crowd, size.terrace, rand);
-      group.add(crowd);
+      if (placeOnTerrace(crowd, size.terrace, rand, people.radius, placed)) group.add(crowd);
     }
   }
 
   for (const missDay of level.scars) addScar(group, size, missDay);
 }
 
-function placeOnTerrace(obj, t, rand) {
-  obj.position.set(
-    t.x + (rand() - 0.5) * Math.max(t.w - 0.5, 0.2),
-    SLAB_TOP + 0.08,
-    t.z + (rand() - 0.5) * Math.max(t.d - 0.5, 0.2)
-  );
-  obj.rotation.y = rand() * Math.PI * 2;
+// A candidate (x,z,y,r) collides if any prior footprint is closer than the
+// summed radii in XZ AND within a 0.45 vertical band (so a wall sign can sit
+// above an awning). Surface props share roof height, so for them it reduces
+// to a pure XZ separation test.
+function collides(x, z, y, r, placed) {
+  for (const p of placed) {
+    if (Math.hypot(x - p.x, z - p.z) < r + p.r && Math.abs(y - p.y) < 0.45) return true;
+  }
+  return false;
 }
 
-function placeProp(obj, mount, size, rand) {
+function placeOnTerrace(obj, t, rand, radius, placed) {
+  // Re-roll a clear spot up to 6 times; skip the prop if the deck is full.
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const x = t.x + (rand() - 0.5) * Math.max(t.w - 0.5, 0.2);
+    const z = t.z + (rand() - 0.5) * Math.max(t.d - 0.5, 0.2);
+    const y = SLAB_TOP + 0.08;
+    const ry = rand() * Math.PI * 2;
+    if (collides(x, z, y, radius, placed)) continue;
+    obj.position.set(x, y, z);
+    obj.rotation.y = ry;
+    placed.push({ x, z, y, r: radius });
+    return true;
+  }
+  return false;
+}
+
+function placeProp(obj, mount, size, rand, radius, placed) {
   if (mount === "ledge" && size.terrace) {
-    placeOnTerrace(obj, size.terrace, rand);
-    return;
+    return placeOnTerrace(obj, size.terrace, rand, radius, placed);
   }
-  if (mount === "roof") {
-    const p = randomPointInside(size, rand);
-    obj.position.set(p.x, SLAB_TOP, p.z);
-    obj.rotation.y = rand() * Math.PI * 2;
-    return;
+  // Roll a candidate exactly as before; re-roll on collision (consuming seeded
+  // rand deterministically) up to 6 times, then skip if it never clears.
+  for (let attempt = 0; attempt < 6; attempt++) {
+    let x;
+    let y;
+    let z;
+    let ry;
+    if (mount === "roof") {
+      const p = randomPointInside(size, rand);
+      x = p.x;
+      z = p.z;
+      y = SLAB_TOP;
+      ry = rand() * Math.PI * 2;
+    } else {
+      // wall + terrace-less ledge props hang off a real outline edge so nothing
+      // floats over chamfered/notched air
+      const e = pickEdge(size.edges, rand);
+      const m = Math.min(0.4, 0.45 / e.len);
+      const t = m + rand() * (1 - 2 * m);
+      const ex = e.ax + (e.bx - e.ax) * t;
+      const ez = e.az + (e.bz - e.az) * t;
+      if (mount === "wall") {
+        x = ex + e.nx * 0.04;
+        y = LEVEL_H * (0.35 + rand() * 0.4);
+        z = ez + e.nz * 0.04;
+        ry = Math.atan2(e.nx, e.nz); // +z faces along the outward normal
+      } else {
+        // no terrace on this level: perch on the roof edge, facing the interior
+        x = ex - e.nx * 0.3;
+        y = SLAB_TOP;
+        z = ez - e.nz * 0.3;
+        ry = Math.atan2(-e.nx, -e.nz);
+      }
+    }
+    if (collides(x, z, y, radius, placed)) continue;
+    obj.position.set(x, y, z);
+    obj.rotation.y = ry;
+    placed.push({ x, z, y, r: radius });
+    return true;
   }
-  // wall + terrace-less ledge props hang off a real outline edge so nothing
-  // floats over chamfered/notched air
-  const e = pickEdge(size.edges, rand);
-  const m = Math.min(0.4, 0.45 / e.len);
-  const t = m + rand() * (1 - 2 * m);
-  const x = e.ax + (e.bx - e.ax) * t;
-  const z = e.az + (e.bz - e.az) * t;
-  if (mount === "wall") {
-    obj.position.set(x + e.nx * 0.04, LEVEL_H * (0.35 + rand() * 0.4), z + e.nz * 0.04);
-    obj.rotation.y = Math.atan2(e.nx, e.nz); // +z faces along the outward normal
-  } else {
-    // no terrace on this level: perch on the roof edge, facing the interior
-    obj.position.set(x - e.nx * 0.3, SLAB_TOP, z - e.nz * 0.3);
-    obj.rotation.y = Math.atan2(-e.nx, -e.nz);
-  }
+  return false;
 }
 
 function addScar(group, size, missDay) {

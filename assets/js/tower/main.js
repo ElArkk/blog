@@ -71,7 +71,7 @@ function windowColor(r, bias = 0) {
 
 init().catch((err) => {
   console.error(err);
-  document.getElementById("hud").textContent = "moontower failed to start — see console";
+  document.getElementById("hud").textContent = "tower failed to start — see console";
 });
 
 async function init() {
@@ -114,14 +114,14 @@ async function loadState() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const state = await res.json();
     try {
-      localStorage.setItem("moontower-state", JSON.stringify(state));
+      localStorage.setItem("tower-state", JSON.stringify(state));
     } catch {
       // quota error — fresh state is still valid, just not cached
     }
     return state;
   } catch (err) {
     console.warn("state fetch failed, using cache", err);
-    const cached = localStorage.getItem("moontower-state");
+    const cached = localStorage.getItem("tower-state");
     if (cached) {
       try {
         return { ...JSON.parse(cached), offline: true };

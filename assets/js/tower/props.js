@@ -1,4 +1,4 @@
-// Hand-built low-poly prop library for the Moontower renderer.
+// Hand-built low-poly prop library for the Tower renderer.
 //
 // Prop contract (main.js relies on this; follow it when adding props):
 // - { name, addedOn, mount: "wall"|"roof"|"ledge", weight, radius, build }

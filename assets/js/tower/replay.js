@@ -1,4 +1,4 @@
-// Pure Moontower state replay. No Three.js imports — node-testable.
+// Pure Tower state replay. No Three.js imports — node-testable.
 
 export function mulberry32(seed) {
   return function () {

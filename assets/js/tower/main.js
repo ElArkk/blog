@@ -33,9 +33,32 @@ const WINDOW_MAT = new THREE.MeshBasicMaterial({ color: 0xffffff }); // tinted p
 const WINDOW_LIT_RATE = 0.4;
 const WINDOW_DARK = 0x12121c;
 
-function windowColor(r) {
-  // r in [0,1): weighted toward warm amber, then pale cyan, then off-white
-  return r < 0.55 ? 0xffb36b : r < 0.8 ? 0x9adfff : 0xfff2cc;
+// Per-level slab palette families: each is a (hue, saturation, lightness)
+// range, all kept dim so neon and lit windows still pop. A level seeds into
+// one family; juts can borrow an accent family for contrast.
+const PALETTES = [
+  { h: [0.58, 0.72], s: [0.18, 0.28], l: [0.12, 0.22] }, // cool blue-violet (original)
+  { h: [0.45, 0.52], s: [0.18, 0.30], l: [0.12, 0.20] }, // teal
+  { h: [0.03, 0.09], s: [0.22, 0.38], l: [0.12, 0.20] }, // warm rust/brown
+  { h: [0.18, 0.28], s: [0.10, 0.20], l: [0.13, 0.21] }, // olive-grey
+  { h: [0.86, 0.96], s: [0.12, 0.22], l: [0.13, 0.21] }, // magenta-grey
+];
+
+function familyColor(fam, rand) {
+  const lerp = (a, b) => a + (b - a) * rand();
+  return new THREE.Color().setHSL(
+    lerp(fam.h[0], fam.h[1]),
+    lerp(fam.s[0], fam.s[1]),
+    lerp(fam.l[0], fam.l[1])
+  );
+}
+
+function windowColor(r, bias = 0) {
+  // r in [0,1): weighted toward warm amber, then pale cyan, then off-white.
+  // bias > 0 leans the whole level amber, bias < 0 leans it cyan.
+  const amberCut = Math.min(0.82, Math.max(0.28, 0.55 + bias));
+  const cyanCut = Math.min(0.95, amberCut + 0.25);
+  return r < amberCut ? 0xffb36b : r < cyanCut ? 0x9adfff : 0xfff2cc;
 }
 
 init().catch((err) => {
@@ -144,11 +167,9 @@ function buildLevel(level, index, startIso) {
   const group = new THREE.Group();
   group.position.y = index * LEVEL_H;
 
-  const hue = 0.58 + rand() * 0.14;
-  const slabMat = () =>
-    new THREE.MeshLambertMaterial({
-      color: new THREE.Color().setHSL(hue, 0.22, 0.13 + rand() * 0.1),
-    });
+  const famIndex = Math.floor(rand() * PALETTES.length);
+  const family = PALETTES[famIndex];
+  const slabMat = () => new THREE.MeshLambertMaterial({ color: familyColor(family, rand) });
 
   // main massing block: irregular extruded floor plan + staggered stacking offset
   const w = LEVEL_W * (0.6 + rand() * 0.7);
@@ -177,7 +198,17 @@ function buildLevel(level, index, startIso) {
     const jh = LEVEL_H * (0.35 + rand() * 0.59);
     const side = Math.floor(rand() * 4);
     const along = (rand() - 0.5) * 0.7 * (side < 2 ? w : d);
-    const jut = new THREE.Mesh(new THREE.BoxGeometry(jw, jh, jd), slabMat());
+    // ~25% of juts borrow a different palette family as an accent tint
+    const jutMat =
+      rand() < 0.25
+        ? new THREE.MeshLambertMaterial({
+            color: familyColor(
+              PALETTES[(famIndex + 1 + Math.floor(rand() * (PALETTES.length - 1))) % PALETTES.length],
+              rand
+            ),
+          })
+        : slabMat();
+    const jut = new THREE.Mesh(new THREE.BoxGeometry(jw, jh, jd), jutMat);
     const jx = side === 2 ? w / 2 : side === 3 ? -w / 2 : along;
     const jz = side === 0 ? d / 2 : side === 1 ? -d / 2 : along;
     jut.position.set(offX + jx, jh / 2, offZ + jz);
@@ -215,7 +246,8 @@ function buildLevel(level, index, startIso) {
   }
 
   group.userData.size = { w, d, offX, offZ, terrace, edges, poly };
-  addWindows(group, edges, rand);
+  const windowBias = (rand() - 0.5) * 0.5; // -0.25..0.25 warmth lean for the whole level
+  addWindows(group, edges, rand, windowBias);
   decorate(group, level, rand, startIso);
   return group;
 }
@@ -366,7 +398,7 @@ function pickEdge(edges, rand, minLen = 0.5) {
 
 // Three rows of window lights along every outline edge long enough to hold
 // them — one InstancedMesh per level keeps it one draw call.
-function addWindows(group, edges, rand) {
+function addWindows(group, edges, rand, bias = 0) {
   const slots = [];
   for (const e of edges) {
     if (e.len <= 0.8) continue;
@@ -393,11 +425,11 @@ function addWindows(group, edges, rand) {
     m.setPosition(s.x, s.y, s.z);
     mesh.setMatrixAt(i, m);
     const roll = rand();
-    color.setHex(roll < WINDOW_LIT_RATE ? windowColor(roll / WINDOW_LIT_RATE) : WINDOW_DARK);
+    color.setHex(roll < WINDOW_LIT_RATE ? windowColor(roll / WINDOW_LIT_RATE, bias) : WINDOW_DARK);
     mesh.setColorAt(i, color);
   }
   group.add(mesh);
-  windowMeshes.push({ mesh, y: group.position.y });
+  windowMeshes.push({ mesh, y: group.position.y, bias });
 }
 
 // Ambient life: every ~0.5s one window near the camera flips lit/dark.
@@ -410,10 +442,10 @@ function windowFlickerTick() {
     next = t + 0.4 + Math.random() * 0.25;
     const near = windowMeshes.filter((wm) => Math.abs(wm.y - camera.position.y) < 18);
     if (!near.length) return;
-    const { mesh } = near[Math.floor(Math.random() * near.length)];
+    const { mesh, bias } = near[Math.floor(Math.random() * near.length)];
     const i = Math.floor(Math.random() * mesh.count);
     mesh.getColorAt(i, c);
-    c.setHex(c.r > 0.3 ? WINDOW_DARK : windowColor(Math.random()));
+    c.setHex(c.r > 0.3 ? WINDOW_DARK : windowColor(Math.random(), bias));
     mesh.setColorAt(i, c);
     mesh.instanceColor.needsUpdate = true;
   };
@@ -437,15 +469,26 @@ function decorate(group, level, rand, startIso) {
     if (obj.userData.tick) ticks.push(obj.userData.tick);
   }
 
-  // terraces always get inhabitants
+  // Furnish every terrace so no deck reads as bare: one people group plus 1-3
+  // weighted ledge props from the date-gated library, packed tighter (0.85 of
+  // the usual footprint) with extra placement retries.
   if (size.terrace && totalWeight) {
+    const ledge = available.filter((p) => p.mount === "ledge");
+    const ledgeWeight = ledge.reduce((s, p) => s + p.weight, 0);
+    const furnishings = [];
     const people = available.find((p) => p.name === "people");
-    if (people) {
-      const crowd = people.build(THREE, rand, { w: size.w, d: size.d });
-      crowd.scale.setScalar(PROP_SCALE);
-      if (placeOnTerrace(crowd, size.terrace, rand, people.radius * PROP_SCALE, placed)) {
-        group.add(crowd);
-        if (crowd.userData.tick) ticks.push(crowd.userData.tick);
+    if (people) furnishings.push(people);
+    const extra = 1 + Math.floor(rand() * 3); // 1-3 additional ledge props
+    for (let i = 0; i < extra && ledgeWeight; i++) {
+      let roll = rand() * ledgeWeight;
+      furnishings.push(ledge.find((p) => (roll -= p.weight) <= 0) ?? ledge[0]);
+    }
+    for (const prop of furnishings) {
+      const obj = prop.build(THREE, rand, { w: size.w, d: size.d });
+      obj.scale.setScalar(PROP_SCALE);
+      if (placeOnTerrace(obj, size.terrace, rand, prop.radius * PROP_SCALE * 0.85, placed, 10)) {
+        group.add(obj);
+        if (obj.userData.tick) ticks.push(obj.userData.tick);
       }
     }
   }
@@ -464,9 +507,9 @@ function collides(x, z, y, r, placed) {
   return false;
 }
 
-function placeOnTerrace(obj, t, rand, radius, placed) {
-  // Re-roll a clear spot up to 6 times; skip the prop if the deck is full.
-  for (let attempt = 0; attempt < 6; attempt++) {
+function placeOnTerrace(obj, t, rand, radius, placed, tries = 6) {
+  // Re-roll a clear spot up to `tries` times; skip the prop if the deck is full.
+  for (let attempt = 0; attempt < tries; attempt++) {
     const x = t.x + (rand() - 0.5) * Math.max(t.w - 0.5, 0.2);
     const z = t.z + (rand() - 0.5) * Math.max(t.d - 0.5, 0.2);
     const y = SLAB_TOP + 0.08;

@@ -15,10 +15,17 @@
 // - addedOn date-gates the prop: levels only use props that existed on
 //   the level's real date, so old floors never change as this list grows.
 
-export const NEON = [0xff2d78, 0x00e5ff, 0x9d4dff, 0x00ff9c, 0xffb300];
+export const NEON = [
+  0xff2d78, 0x00e5ff, 0x9d4dff, 0x00ff9c, 0xffb300,
+  0xff7a1a, 0xc8ff3a, 0xfff0e0, // orange, lime, warm white
+];
 
-// Muted clothing palette: greys, browns, navy, dark green, dusty red.
-const CLOTH = [0x4a4a52, 0x3a3a42, 0x5a4632, 0x6a5238, 0x2a2e44, 0x2e3a2c, 0x6a3a3a];
+// Muted clothing palette: greys, browns, navy, dark green, dusty red,
+// plus tan, slate blue, plum, faded teal.
+const CLOTH = [
+  0x4a4a52, 0x3a3a42, 0x5a4632, 0x6a5238, 0x2a2e44, 0x2e3a2c, 0x6a3a3a,
+  0x8a7a5a, 0x46506a, 0x5a3a52, 0x3a5a55,
+];
 
 export function propsAvailableOn(props, isoDate) {
   return props.filter((p) => p.addedOn <= isoDate);
@@ -47,6 +54,17 @@ function glowBox(T, w, h, d, color) {
 
 function pickNeon(rand) {
   return NEON[Math.floor(rand() * NEON.length)];
+}
+
+// Seeded per-channel colour drift: jitters an RGB hex multiplicatively so a
+// flat constant gains muted variation without leaving its palette. Build-time
+// only (uses `rand`); never call inside a tick.
+function drift(hex, rand, amt = 0.12) {
+  const ch = (shift) => {
+    const v = Math.round(((hex >> shift) & 0xff) * (1 + (rand() - 0.5) * 2 * amt));
+    return Math.min(255, Math.max(0, v));
+  };
+  return (ch(16) << 16) | (ch(8) << 8) | ch(0);
 }
 
 function flicker(mesh, offRate = 0.01) {
@@ -203,7 +221,7 @@ export const PROPS = [
     radius: 0.25,
     build(T, rand) {
       const g = new T.Group();
-      const body = box(T, 0.32, 0.6, 0.3, 0x28283a);
+      const body = box(T, 0.32, 0.6, 0.3, drift(0x28283a, rand, 0.18));
       body.position.y = 0.3;
       const front = glow(T, 0.2, 0.42, pickNeon(rand));
       front.position.set(0, 0.32, 0.151);
@@ -220,9 +238,9 @@ export const PROPS = [
     radius: 0.45,
     build(T, rand) {
       const g = new T.Group();
-      const counter = box(T, 0.7, 0.3, 0.35, 0x4a3a30);
+      const counter = box(T, 0.7, 0.3, 0.35, drift(0x4a3a30, rand, 0.15));
       counter.position.y = 0.15;
-      const roofTop = box(T, 0.8, 0.05, 0.45, 0xa33a3a);
+      const roofTop = box(T, 0.8, 0.05, 0.45, drift(0xa33a3a, rand, 0.18));
       roofTop.position.y = 0.72;
       for (const x of [-0.34, 0.34]) {
         const leg = box(T, 0.04, 0.45, 0.04, 0x33282a);
@@ -526,7 +544,7 @@ export const PROPS = [
       let y = 0;
       for (let i = 0; i < n; i++) {
         const s = 0.15 + rand() * 0.1; // 0.15-0.25
-        const crate = box(T, s, s, s, cols[Math.floor(rand() * cols.length)]);
+        const crate = box(T, s, s, s, drift(cols[Math.floor(rand() * cols.length)], rand, 0.12));
         crate.position.set((rand() - 0.5) * 0.06, y + s / 2, (rand() - 0.5) * 0.06);
         crate.rotation.y = (rand() - 0.5) * 0.3;
         g.add(crate);
@@ -543,6 +561,341 @@ export const PROPS = [
         label.position.set(c.position.x, c.position.y, c.position.z + s / 2 + 0.002);
         label.rotation.y = c.rotation.y;
         g.add(label);
+      }
+      return g;
+    },
+  },
+  {
+    name: "water-tank",
+    addedOn: "2026-06-11",
+    mount: "roof",
+    weight: 2,
+    radius: 0.35,
+    build(T, rand) {
+      const g = new T.Group();
+      const rust = drift(0x6a4632, rand, 0.18);
+      const r = 0.26 + rand() * 0.08;
+      const bodyH = 0.34 + rand() * 0.18;
+      const legH = 0.16 + rand() * 0.1;
+      const tank = new T.Mesh(new T.CylinderGeometry(r, r, bodyH, 10), lambert(T, rust));
+      tank.position.y = legH + bodyH / 2;
+      const lid = new T.Mesh(new T.CylinderGeometry(r * 0.92, r, 0.05, 10), lambert(T, drift(0x55402e, rand, 0.15)));
+      lid.position.y = legH + bodyH + 0.02;
+      g.add(tank, lid);
+      for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+        const leg = box(T, 0.05, legH, 0.05, 0x3a2e22);
+        leg.position.set(sx * r * 0.62, legH / 2, sz * r * 0.62);
+        g.add(leg);
+      }
+      if (rand() < 0.45) {
+        // dripping rust streak down one side
+        const streak = box(T, 0.05, bodyH * 0.8, 0.01, 0x2a3530);
+        const a = rand() * Math.PI * 2;
+        streak.position.set(Math.cos(a) * r, legH + bodyH * 0.4, Math.sin(a) * r);
+        streak.rotation.y = -a;
+        g.add(streak);
+      }
+      return g;
+    },
+  },
+  {
+    name: "exhaust-fan",
+    addedOn: "2026-06-11",
+    mount: "wall",
+    weight: 2,
+    radius: 0.3,
+    build(T, rand) {
+      const g = new T.Group();
+      const shroud = box(T, 0.5, 0.5, 0.22, drift(0x3a3a44, rand, 0.12));
+      const rim = new T.Mesh(new T.CylinderGeometry(0.22, 0.22, 0.06, 12), lambert(T, 0x2a2a32));
+      rim.rotation.x = Math.PI / 2;
+      rim.position.z = 0.13;
+      // fan disc spun by the tick: blade boxes crossing a hub
+      const fan = new T.Group();
+      fan.userData.animated = true; // tick spins it — keep out of the matrix freeze
+      fan.position.z = 0.16;
+      const hub = new T.Mesh(new T.CylinderGeometry(0.04, 0.04, 0.05, 6), lambert(T, 0x55555f));
+      hub.rotation.x = Math.PI / 2;
+      fan.add(hub);
+      const blades = 3 + Math.floor(rand() * 2); // 3-4 (6-8 spokes)
+      for (let i = 0; i < blades; i++) {
+        const blade = box(T, 0.04, 0.34, 0.01, 0x6a6a74);
+        blade.rotation.z = (i / blades) * Math.PI;
+        fan.add(blade);
+      }
+      const streak = box(T, 0.1, 0.55, 0.01, 0x262026);
+      streak.position.set((rand() - 0.5) * 0.2, -0.5, 0.12);
+      g.add(shroud, rim, fan, streak);
+      const speed = 1.5 + rand() * 2.5;
+      g.userData.tick = (t) => { fan.rotation.z = t * speed; };
+      return g;
+    },
+  },
+  {
+    name: "vertical-sign",
+    addedOn: "2026-06-11",
+    mount: "wall",
+    weight: 2,
+    radius: 0.25,
+    build(T, rand) {
+      const g = new T.Group();
+      const col = pickNeon(rand);
+      const segs = 3 + Math.floor(rand() * 4); // 3-6
+      const sw = 0.16 + rand() * 0.08;
+      const sh = 0.16;
+      const gap = 0.04;
+      const total = segs * (sh + gap);
+      const backing = box(T, sw + 0.06, total + 0.06, 0.05, 0x14141c);
+      backing.position.y = total / 2;
+      g.add(backing);
+      const pick = Math.floor(rand() * segs);
+      let flickerSeg = null;
+      for (let i = 0; i < segs; i++) {
+        const seg = glow(T, sw, sh, col);
+        seg.position.set(0, sh / 2 + i * (sh + gap), 0.03);
+        g.add(seg);
+        if (i === pick) flickerSeg = seg;
+      }
+      g.userData.tick = flicker(flickerSeg, 0.02);
+      return g;
+    },
+  },
+  {
+    name: "lantern-string",
+    addedOn: "2026-06-11",
+    mount: "wall",
+    weight: 2,
+    radius: 0.45,
+    build(T, rand) {
+      const g = new T.Group();
+      const span = 1.0;
+      const n = 3 + Math.floor(rand() * 4); // 3-6
+      const warm = [0xffb300, 0xff5a3a, 0xff7aa8, 0xffd24a]; // amber / red / pink / gold
+      const sag = 0.16 + rand() * 0.1;
+      const pts = [];
+      const lanterns = [];
+      for (let i = 0; i < n; i++) {
+        const f = n === 1 ? 0.5 : i / (n - 1);
+        const x = -span / 2 + f * span;
+        const y = -sag * Math.sin(f * Math.PI); // dip in the middle
+        pts.push([x, y]);
+        const lant = glowBox(T, 0.07, 0.1, 0.07, warm[Math.floor(rand() * warm.length)]);
+        lant.position.set(x, y - 0.05, 0.04);
+        g.add(lant);
+        lanterns.push(lant);
+      }
+      // thin sagging wire: a box per gap, tilted to follow the arc
+      for (let i = 0; i < pts.length - 1; i++) {
+        const [x1, y1] = pts[i];
+        const [x2, y2] = pts[i + 1];
+        const len = Math.hypot(x2 - x1, y2 - y1);
+        const wire = box(T, len, 0.01, 0.01, 0x33333a);
+        wire.position.set((x1 + x2) / 2, (y1 + y2) / 2, 0.02);
+        wire.rotation.z = Math.atan2(y2 - y1, x2 - x1);
+        g.add(wire);
+      }
+      g.userData.tick = flicker(lanterns[Math.floor(rand() * lanterns.length)], 0.015);
+      return g;
+    },
+  },
+  {
+    name: "solar-rack",
+    addedOn: "2026-06-11",
+    mount: "roof",
+    weight: 2,
+    radius: 0.4,
+    build(T, rand) {
+      const g = new T.Group();
+      const n = 2 + Math.floor(rand() * 3); // 2-4
+      const tilt = -0.5 - rand() * 0.3;
+      const pw = 0.5;
+      const pd = 0.42;
+      const blue = drift(0x1a2a5a, rand, 0.12);
+      const pitch = pw + 0.06;
+      for (let i = 0; i < n; i++) {
+        const x = -((n - 1) * pitch) / 2 + i * pitch;
+        const backLeg = box(T, 0.03, 0.3, 0.03, 0x44444f);
+        backLeg.position.set(x, 0.15, -pd * 0.35);
+        const frontLeg = box(T, 0.03, 0.12, 0.03, 0x44444f);
+        frontLeg.position.set(x, 0.06, pd * 0.35);
+        const panel = box(T, pw, 0.03, pd, blue);
+        panel.position.set(x, 0.23, 0);
+        panel.rotation.x = tilt;
+        g.add(backLeg, frontLeg, panel);
+      }
+      return g;
+    },
+  },
+  {
+    name: "pigeon-coop",
+    addedOn: "2026-06-11",
+    mount: "roof",
+    weight: 1,
+    radius: 0.3,
+    build(T, rand) {
+      const g = new T.Group();
+      const wood = drift(0x6a5236, rand, 0.15);
+      const hutch = box(T, 0.4, 0.3, 0.3, wood);
+      hutch.position.y = 0.15;
+      const roof = box(T, 0.46, 0.05, 0.36, drift(0x4a3a28, rand, 0.12));
+      roof.position.y = 0.32;
+      g.add(hutch, roof);
+      for (let i = 0; i < 4; i++) {
+        const slat = box(T, 0.02, 0.22, 0.01, 0x3a2e20);
+        slat.position.set(-0.14 + i * 0.09, 0.15, 0.151);
+        g.add(slat);
+      }
+      // 1-3 tiny birds perched on the roof or on the deck nearby
+      const birds = 1 + Math.floor(rand() * 3);
+      const grey = [0x8a8a92, 0x6a6a74, 0x9a9088];
+      for (let i = 0; i < birds; i++) {
+        const onRoof = rand() < 0.6;
+        const bird = box(T, 0.05, 0.05, 0.07, grey[Math.floor(rand() * grey.length)]);
+        bird.position.set(
+          (rand() - 0.5) * 0.36,
+          onRoof ? 0.37 : 0.025,
+          (rand() - 0.5) * 0.26 + (onRoof ? 0 : 0.28)
+        );
+        bird.rotation.y = rand() * Math.PI * 2;
+        g.add(bird);
+      }
+      return g;
+    },
+  },
+  {
+    name: "kiosk",
+    addedOn: "2026-06-11",
+    mount: "ledge",
+    weight: 2,
+    radius: 0.4,
+    build(T, rand) {
+      const g = new T.Group();
+      const body = box(T, 0.6, 0.55, 0.4, drift(0x3a3340, rand, 0.12));
+      body.position.y = 0.275;
+      const awning = box(T, 0.7, 0.04, 0.18, drift(0xa3473a, rand, 0.14));
+      awning.position.set(0, 0.52, 0.26);
+      awning.rotation.x = -0.4;
+      const pane = glow(T, 0.46, 0.26, pickNeon(rand));
+      pane.position.set(0, 0.34, 0.201);
+      g.add(body, awning, pane);
+      g.userData.tick = flicker(pane, 0.004);
+      // stacked goods on the counter ledge
+      const goods = [0x6b4a2f, 0x3a5a6a, 0x7a5230];
+      const n = 2 + Math.floor(rand() * 2);
+      for (let i = 0; i < n; i++) {
+        const s = 0.1 + rand() * 0.05;
+        const gb = box(T, s, s, s, drift(goods[Math.floor(rand() * goods.length)], rand, 0.12));
+        gb.position.set(-0.18 + i * 0.16, 0.55 + s / 2, 0.12);
+        gb.rotation.y = (rand() - 0.5) * 0.4;
+        g.add(gb);
+      }
+      return g;
+    },
+  },
+  {
+    name: "scooter",
+    addedOn: "2026-06-11",
+    mount: "ledge",
+    weight: 2,
+    radius: 0.25,
+    build(T, rand) {
+      const g = new T.Group();
+      const lean = new T.Group(); // whole bike tips toward its kickstand
+      const wb = 0.34; // wheelbase along X
+      for (const sx of [-1, 1]) {
+        const wheel = new T.Mesh(new T.CylinderGeometry(0.1, 0.1, 0.04, 10), lambert(T, 0x1c1c22));
+        wheel.rotation.x = Math.PI / 2; // axle runs along Z, disc faces front
+        wheel.position.set((sx * wb) / 2, 0.1, 0);
+        lean.add(wheel);
+      }
+      const body = box(T, wb, 0.08, 0.1, drift(0x8a3a3a, rand, 0.2));
+      body.position.set(0, 0.2, 0);
+      body.rotation.z = 0.12;
+      const deck = box(T, 0.18, 0.04, 0.12, 0x2a2a30);
+      deck.position.set(-0.02, 0.16, 0);
+      const seat = box(T, 0.16, 0.05, 0.1, 0x222228);
+      seat.position.set(-wb * 0.35, 0.27, 0);
+      const column = box(T, 0.04, 0.24, 0.04, 0x55555f);
+      column.position.set(wb * 0.45, 0.27, 0);
+      column.rotation.z = -0.3;
+      const bar = box(T, 0.04, 0.04, 0.22, 0x55555f);
+      bar.position.set(wb * 0.52, 0.37, 0);
+      lean.add(body, deck, seat, column, bar);
+      lean.rotation.z = (0.12 + rand() * 0.12) * (rand() < 0.5 ? -1 : 1); // parked lean
+      g.add(lean);
+      return g;
+    },
+  },
+  {
+    name: "barrels",
+    addedOn: "2026-06-11",
+    mount: "ledge",
+    weight: 2,
+    radius: 0.3,
+    build(T, rand) {
+      const g = new T.Group();
+      const cols = [0x4a5a3a, 0x5a4632, 0x3a5a6a, 0x6a5a2a]; // olive / rust / steel-blue / mustard
+      const n = 2 + Math.floor(rand() * 3); // 2-4
+      const r = 0.12;
+      const h = 0.34;
+      const tipped = rand() < 0.4 ? Math.floor(rand() * n) : -1;
+      for (let i = 0; i < n; i++) {
+        const col = drift(cols[Math.floor(rand() * cols.length)], rand, 0.1);
+        const drum = new T.Mesh(new T.CylinderGeometry(r, r, h, 10), lambert(T, col));
+        const band = new T.Mesh(new T.CylinderGeometry(r + 0.01, r + 0.01, 0.03, 10), lambert(T, 0x2a2a30));
+        const ang = (i / n) * Math.PI * 2;
+        const px = Math.cos(ang) * 0.16;
+        const pz = Math.sin(ang) * 0.16;
+        if (i === tipped) {
+          drum.rotation.x = Math.PI / 2;
+          drum.position.set(px, r, pz);
+          band.rotation.x = Math.PI / 2;
+          band.position.set(px, r, pz);
+        } else {
+          drum.position.set(px, h / 2, pz);
+          band.position.set(px, h * 0.7, pz);
+        }
+        g.add(drum, band);
+      }
+      return g;
+    },
+  },
+  {
+    name: "planter",
+    addedOn: "2026-06-11",
+    mount: "ledge",
+    weight: 2,
+    radius: 0.3,
+    build(T, rand) {
+      const g = new T.Group();
+      const holo = rand() < 0.1; // rare neon-tinted "holo-plant" variant
+      const bw = 0.5;
+      const bd = 0.2;
+      const planter = box(T, bw, 0.16, bd, drift(0x4a4036, rand, 0.12));
+      planter.position.y = 0.08;
+      const soil = box(T, bw - 0.04, 0.04, bd - 0.04, 0x241e18);
+      soil.position.y = 0.16;
+      g.add(planter, soil);
+      const greens = [0x2e6a3a, 0x3a7a5a, 0x4a8a4a, 0x2a6a6a]; // green / teal
+      const n = 2 + Math.floor(rand() * 3); // 2-4
+      for (let i = 0; i < n; i++) {
+        const x = -bw / 2 + 0.1 + (i / Math.max(n - 1, 1)) * (bw - 0.2);
+        const fh = 0.16 + rand() * 0.16;
+        const col = greens[Math.floor(rand() * greens.length)];
+        const neon = pickNeon(rand);
+        if (rand() < 0.5) {
+          const leaf = holo ? glowBox(T, 0.1, fh, 0.08, neon) : box(T, 0.1, fh, 0.08, drift(col, rand, 0.15));
+          leaf.position.set(x, 0.18 + fh / 2, (rand() - 0.5) * 0.06);
+          leaf.rotation.z = (rand() - 0.5) * 0.3;
+          g.add(leaf);
+        } else {
+          const rad = 0.08 + rand() * 0.04;
+          const bush = holo
+            ? new T.Mesh(new T.SphereGeometry(rad, 6, 5), new T.MeshBasicMaterial({ color: neon }))
+            : new T.Mesh(new T.SphereGeometry(rad, 6, 5), lambert(T, drift(col, rand, 0.15)));
+          bush.position.set(x, 0.2 + fh * 0.4, (rand() - 0.5) * 0.06);
+          g.add(bush);
+        }
       }
       return g;
     },

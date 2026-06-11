@@ -3,7 +3,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { replay, demoResults, mulberry32, dateOfDay } from "./replay.js";
 import { PROPS, NEON, propsAvailableOn } from "./props.js";
 
-const STATE_URL = "https://elarkk--obsidian-agents-tower-state.modal.run";
+const STATE_URL = "https://elarkk--obsidian-personal-tower-state.modal.run";
 
 const LEVEL_H = 2.4;
 const LEVEL_W = 5.4;

@@ -8,6 +8,7 @@ const STATE_URL = "PASTE_TOWER_STATE_URL_HERE";
 const LEVEL_H = 1.6;
 const LEVEL_W = 3.6;
 const LEVEL_D = 3.6;
+const SLAB_TOP = LEVEL_H / 2 + (LEVEL_H * 0.94) / 2; // top face of a level slab
 const INTERNAL_WIDTH = 320; // PS1 pipeline: render small, upscale with hard pixels
 const MOON_LEVEL = 365;
 const SKY = 0x141020;
@@ -107,6 +108,7 @@ function buildWorld(state) {
     scene.add(buildLevel(levels[i], i, state.start));
   }
   addMilestones(levels.length);
+  addAmbient(levels.length);
 
   addRubble(rubble);
   addMoonAndStars(levels.length);
@@ -117,63 +119,151 @@ function buildLevel(level, index, startIso) {
   const group = new THREE.Group();
   group.position.y = index * LEVEL_H;
 
-  const w = LEVEL_W * (0.85 + rand() * 0.3);
-  const d = LEVEL_D * (0.85 + rand() * 0.3);
   const hue = 0.58 + rand() * 0.14;
-  const slab = new THREE.Mesh(
-    new THREE.BoxGeometry(w, LEVEL_H * 0.94, d),
+  const slabMat = () =>
     new THREE.MeshLambertMaterial({
-      color: new THREE.Color().setHSL(hue, 0.22, 0.15 + rand() * 0.08),
-    })
-  );
-  slab.position.y = LEVEL_H / 2;
+      color: new THREE.Color().setHSL(hue, 0.22, 0.13 + rand() * 0.1),
+    });
+
+  // main massing block: wide size spread + staggered stacking offset
+  const w = LEVEL_W * (0.6 + rand() * 0.7);
+  const d = LEVEL_D * (0.6 + rand() * 0.7);
+  const offX = (rand() - 0.5) * 0.8;
+  const offZ = (rand() - 0.5) * 0.8;
+  const slab = new THREE.Mesh(new THREE.BoxGeometry(w, LEVEL_H * 0.94, d), slabMat());
+  slab.position.set(offX, LEVEL_H / 2, offZ);
   group.add(slab);
-  group.userData.size = { w, d };
+
+  // 0-2 jut boxes half-sunk into a face: extra corners and edges
+  const juts = Math.floor(rand() * 3);
+  for (let i = 0; i < juts; i++) {
+    const jw = 0.5 + rand() * 1.1;
+    const jd = 0.5 + rand() * 1.1;
+    const jh = LEVEL_H * (0.35 + rand() * 0.59);
+    const side = Math.floor(rand() * 4);
+    const along = (rand() - 0.5) * 0.7 * (side < 2 ? w : d);
+    const jut = new THREE.Mesh(new THREE.BoxGeometry(jw, jh, jd), slabMat());
+    const jx = side === 2 ? w / 2 : side === 3 ? -w / 2 : along;
+    const jz = side === 0 ? d / 2 : side === 1 ? -d / 2 : along;
+    jut.position.set(offX + jx, jh / 2, offZ + jz);
+    group.add(jut);
+  }
+
+  // terrace: outdoor deck at roof height with railing posts (people live here)
+  let terrace = null;
+  if (rand() < 0.5) {
+    const tw = 0.9 + rand() * 1.1;
+    const td = 0.9 + rand() * 1.1;
+    const side = Math.floor(rand() * 4);
+    let tx = offX + (rand() - 0.5) * w * 0.4;
+    let tz = offZ + (rand() - 0.5) * d * 0.4;
+    if (side === 0) tz = offZ + d / 2 + td / 2 - 0.2;
+    else if (side === 1) tz = offZ - d / 2 - td / 2 + 0.2;
+    else if (side === 2) tx = offX + w / 2 + tw / 2 - 0.2;
+    else tx = offX - w / 2 - tw / 2 + 0.2;
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(tw, 0.08, td), slabMat());
+    plate.position.set(tx, SLAB_TOP + 0.04, tz);
+    group.add(plate);
+    const postMat = new THREE.MeshLambertMaterial({ color: 0x55556a });
+    for (const [px, pz] of [
+      [-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1],
+    ]) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.22, 0.03), postMat);
+      post.position.set(
+        tx + (px * (tw - 0.06)) / 2,
+        SLAB_TOP + 0.19,
+        tz + (pz * (td - 0.06)) / 2
+      );
+      group.add(post);
+    }
+    terrace = { x: tx, z: tz, w: tw, d: td };
+  }
+
+  group.userData.size = { w, d, offX, offZ, terrace };
   decorate(group, level, rand, startIso);
   return group;
 }
 
 function decorate(group, level, rand, startIso) {
-  const { w, d } = group.userData.size;
+  const size = group.userData.size;
   const levelDate = startIso ? dateOfDay(startIso, level.day) : "2026-06-10";
   const available = propsAvailableOn(PROPS, levelDate);
   const totalWeight = available.reduce((s, p) => s + p.weight, 0);
-  const count = totalWeight ? 2 + Math.floor(rand() * 4) : 0; // 2-5 props per spec
+  const count = totalWeight ? 2 + Math.floor(rand() * 4) : 0;
 
   for (let i = 0; i < count; i++) {
     let roll = rand() * totalWeight;
     const prop = available.find((p) => (roll -= p.weight) <= 0) ?? available[0];
-    const obj = prop.build(THREE, rand, { w, d });
-    placeProp(obj, prop.mount, w, d, rand);
+    const obj = prop.build(THREE, rand, { w: size.w, d: size.d });
+    placeProp(obj, prop.mount, size, rand);
     group.add(obj);
     if (obj.userData.tick) ticks.push(obj.userData.tick);
   }
 
-  for (const missDay of level.scars) addScar(group, w, d, missDay);
+  // terraces always get inhabitants
+  if (size.terrace && totalWeight) {
+    const people = available.find((p) => p.name === "people");
+    if (people) {
+      const crowd = people.build(THREE, rand, { w: size.w, d: size.d });
+      placeOnTerrace(crowd, size.terrace, rand);
+      group.add(crowd);
+    }
+  }
+
+  for (const missDay of level.scars) addScar(group, size, missDay);
 }
 
-function placeProp(obj, mount, w, d, rand) {
+function placeOnTerrace(obj, t, rand) {
+  obj.position.set(
+    t.x + (rand() - 0.5) * Math.max(t.w - 0.5, 0.2),
+    SLAB_TOP + 0.08,
+    t.z + (rand() - 0.5) * Math.max(t.d - 0.5, 0.2)
+  );
+  obj.rotation.y = rand() * Math.PI * 2;
+}
+
+function placeProp(obj, mount, size, rand) {
+  const { w, d, offX, offZ, terrace } = size;
+  if (mount === "ledge" && terrace) {
+    placeOnTerrace(obj, terrace, rand);
+    return;
+  }
   const side = Math.floor(rand() * 4); // 0 +z, 1 -z, 2 +x, 3 -x
   const along = (rand() - 0.5) * (side < 2 ? w - 1 : d - 1);
   if (mount === "roof") {
-    obj.position.set((rand() - 0.5) * (w - 0.6), LEVEL_H * 0.94, (rand() - 0.5) * (d - 0.6));
+    obj.position.set(
+      offX + (rand() - 0.5) * (w - 0.6),
+      SLAB_TOP,
+      offZ + (rand() - 0.5) * (d - 0.6)
+    );
+    obj.rotation.y = rand() * Math.PI * 2;
     return;
   }
-  const y = mount === "wall" ? LEVEL_H * (0.35 + rand() * 0.4) : LEVEL_H * 0.94;
-  // ledge props sit on the roof edge, wall props hang on the face
-  if (side === 0) { obj.position.set(along, y, d / 2 + 0.03); }
-  else if (side === 1) { obj.position.set(along, y, -d / 2 - 0.03); obj.rotation.y = Math.PI; }
-  else if (side === 2) { obj.position.set(w / 2 + 0.03, y, along); obj.rotation.y = Math.PI / 2; }
-  else { obj.position.set(-w / 2 - 0.03, y, along); obj.rotation.y = -Math.PI / 2; }
+  const y = mount === "wall" ? LEVEL_H * (0.35 + rand() * 0.4) : SLAB_TOP;
+  if (side === 0) {
+    obj.position.set(offX + along, y, offZ + d / 2 + 0.03);
+  } else if (side === 1) {
+    obj.position.set(offX + along, y, offZ - d / 2 - 0.03);
+    obj.rotation.y = Math.PI;
+  } else if (side === 2) {
+    obj.position.set(offX + w / 2 + 0.03, y, offZ + along);
+    obj.rotation.y = Math.PI / 2;
+  } else {
+    obj.position.set(offX - w / 2 - 0.03, y, offZ + along);
+    obj.rotation.y = -Math.PI / 2;
+  }
   if (mount === "ledge") {
-    // pull ledge props back onto the roof surface
-    obj.position.multiplyScalar(0.82);
-    obj.position.y = LEVEL_H * 0.94;
-    obj.rotation.y += Math.PI; // face outward
+    // no terrace on this level: tuck the prop back onto the roof edge,
+    // facing the roof interior
+    obj.position.x = offX + (obj.position.x - offX) * 0.82;
+    obj.position.z = offZ + (obj.position.z - offZ) * 0.82;
+    obj.position.y = SLAB_TOP;
+    obj.rotation.y += Math.PI;
   }
 }
 
-function addScar(group, w, d, missDay) {
+function addScar(group, size, missDay) {
+  const { w, d, offX, offZ } = size;
   const rand = mulberry32(missDay * 7919 + 13);
   // scorch patches on the roof edge + one dangling rebar
   for (let i = 0; i < 3; i++) {
@@ -181,14 +271,14 @@ function addScar(group, w, d, missDay) {
       new THREE.BoxGeometry(0.3 + rand() * 0.6, 0.06, 0.3 + rand() * 0.6),
       new THREE.MeshLambertMaterial({ color: 0x0c0a10 })
     );
-    patch.position.set((rand() - 0.5) * (w - 0.5), LEVEL_H * 0.94 + 0.03, (rand() - 0.5) * (d - 0.5));
+    patch.position.set(offX + (rand() - 0.5) * (w - 0.5), SLAB_TOP + 0.03, offZ + (rand() - 0.5) * (d - 0.5));
     group.add(patch);
   }
   const rebar = new THREE.Mesh(
     new THREE.CylinderGeometry(0.02, 0.02, 0.7, 4),
     new THREE.MeshLambertMaterial({ color: 0x3a3026 })
   );
-  rebar.position.set((rand() - 0.5) * w, LEVEL_H * 0.94 + 0.3, (rand() - 0.5) * d);
+  rebar.position.set(offX + (rand() - 0.5) * w, SLAB_TOP + 0.3, offZ + (rand() - 0.5) * d);
   rebar.rotation.z = 0.4 + rand() * 0.5;
   group.add(rebar);
 
@@ -199,7 +289,7 @@ function addScar(group, w, d, missDay) {
   const puffs = [];
   for (let i = 0; i < 3; i++) {
     const puff = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.4), smokeMat.clone());
-    puff.position.set((rand() - 0.5) * w * 0.6, LEVEL_H, (rand() - 0.5) * d * 0.6);
+    puff.position.set(offX + (rand() - 0.5) * w * 0.6, LEVEL_H, offZ + (rand() - 0.5) * d * 0.6);
     group.add(puff);
     puffs.push({ puff, speed: 0.15 + rand() * 0.2, phase: rand() * 3 });
   }
@@ -270,6 +360,72 @@ function addMilestones(height) {
       });
     }
   }
+}
+
+function addAmbient(height) {
+  const towerTop = Math.max(height, 3) * LEVEL_H;
+
+  // drones: lit boxes ferrying between random waypoints around the tower
+  const rand = mulberry32(777);
+  for (let i = 0; i < 3; i++) {
+    const drone = new THREE.Group();
+    drone.add(new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.06, 0.16), new THREE.MeshLambertMaterial({ color: 0x333344 })));
+    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 6), new THREE.MeshBasicMaterial({ color: NEON[i % NEON.length] }));
+    lamp.position.y = -0.05;
+    drone.add(lamp);
+    scene.add(drone);
+
+    let from = wayPoint(rand, towerTop);
+    let to = wayPoint(rand, towerTop);
+    let leg = rand(); // 0..1 progress
+    const speed = 0.04 + rand() * 0.04;
+    ticks.push((t) => {
+      leg += speed * 0.016;
+      if (leg >= 1) { from = to; to = wayPoint(rand, towerTop); leg = 0; }
+      drone.position.lerpVectors(from, to, leg);
+      drone.position.y += Math.sin(t * 3 + i) * 0.05;
+      lamp.visible = Math.sin(t * 4 + i * 2) > -0.5;
+    });
+  }
+
+  // elevator light crawling up the tower face
+  const elevator = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.2, 0.05), new THREE.MeshBasicMaterial({ color: 0x00e5ff }));
+  scene.add(elevator);
+  ticks.push((t) => {
+    const cycle = (t * 0.05) % 2;
+    const y = (cycle < 1 ? cycle : 2 - cycle) * towerTop;
+    elevator.position.set(LEVEL_W / 2 + 0.15, y, 0);
+  });
+
+  // rain: line segments falling in a column around the camera
+  const RAIN = 220;
+  const rainGeo = new THREE.BufferGeometry();
+  const rp = new Float32Array(RAIN * 6);
+  const seeds = [];
+  for (let i = 0; i < RAIN; i++) {
+    seeds.push({ x: (rand() - 0.5) * 24, z: (rand() - 0.5) * 24, off: rand() * 30, sp: 9 + rand() * 5 });
+  }
+  rainGeo.setAttribute("position", new THREE.BufferAttribute(rp, 3));
+  const rain = new THREE.LineSegments(
+    rainGeo,
+    new THREE.LineBasicMaterial({ color: 0x445066, transparent: true, opacity: 0.5 })
+  );
+  scene.add(rain);
+  ticks.push((t) => {
+    for (let i = 0; i < RAIN; i++) {
+      const s = seeds[i];
+      const y = camY + 14 - ((t * s.sp + s.off) % 28);
+      rp[i * 6] = s.x; rp[i * 6 + 1] = y; rp[i * 6 + 2] = s.z;
+      rp[i * 6 + 3] = s.x; rp[i * 6 + 4] = y - 0.5; rp[i * 6 + 5] = s.z;
+    }
+    rainGeo.attributes.position.needsUpdate = true;
+  });
+}
+
+function wayPoint(rand, towerTop) {
+  const a = rand() * Math.PI * 2;
+  const r = 4 + rand() * 5;
+  return new THREE.Vector3(Math.cos(a) * r, 1 + rand() * towerTop, Math.sin(a) * r);
 }
 
 function addMoonAndStars(height) {

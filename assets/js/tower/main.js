@@ -26,12 +26,20 @@ const ticks = []; // per-frame animation callbacks: fn(t)
 let topY = LEVEL_H; // camera clamp ceiling, set by buildWorld
 let controls; // OrbitControls, created in setupControls after buildWorld
 
-// window-light grids: one InstancedMesh per level, shared geometry/material
+// window-light grids: one InstancedMesh per level, shared geometry/material.
+// The geometry is the standard pane; size variants scale the instance matrix.
 const windowMeshes = []; // { mesh, y } — registry for the ambient flicker tick
 const WINDOW_GEO = new THREE.BoxGeometry(0.18, 0.26, 0.04);
 const WINDOW_MAT = new THREE.MeshBasicMaterial({ color: 0xffffff }); // tinted per instance
 const WINDOW_LIT_RATE = 0.4;
 const WINDOW_DARK = 0x12121c;
+// pane variants an edge can pick: small, standard, or wide shopfront
+// (single row near street level); pitch is the column spacing.
+const PANES = [
+  { w: 0.16, h: 0.22, pitch: 0.4, single: false },
+  { w: 0.18, h: 0.26, pitch: 0.4, single: false },
+  { w: 0.5, h: 0.34, pitch: 0.7, single: true },
+];
 
 // Per-level slab palette families: each is a (hue, saturation, lightness)
 // range, all kept dim so neon and lit windows still pop. A level seeds into
@@ -247,9 +255,21 @@ function buildLevel(level, index, startIso) {
 
   group.userData.size = { w, d, offX, offZ, terrace, edges, poly };
   const windowBias = (rand() - 0.5) * 0.5; // -0.25..0.25 warmth lean for the whole level
-  addWindows(group, edges, rand, windowBias);
-  decorate(group, level, rand, startIso);
+  // props go first: the window + facade passes read their footprints so no
+  // pane or cladding patch ends up underneath a neon sign or awning
+  const placed = decorate(group, level, rand, startIso);
+  addWindows(group, edges, rand, windowBias, placed);
+  addFacadeDetails(group, edges, rand, family, placed);
   return group;
+}
+
+// Shoelace area of the [x,z] outline polygon (winding-independent).
+function polygonArea(poly) {
+  let a = 0;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    a += poly[j][0] * poly[i][1] - poly[i][0] * poly[j][1];
+  }
+  return Math.abs(a) / 2;
 }
 
 // Seeded irregular floor plan: the w×d rect bitten by 0-3 corner chamfers,
@@ -396,21 +416,61 @@ function pickEdge(edges, rand, minLen = 0.5) {
   return usable[usable.length - 1];
 }
 
-// Three rows of window lights along every outline edge long enough to hold
-// them — one InstancedMesh per level keeps it one draw call.
-function addWindows(group, edges, rand, bias = 0) {
+// True when (x,z) sits within `pad` of a placed wall prop's XZ footprint AND
+// y is within `yBand` of its mount height — windows and facade details use
+// this to stay out from underneath neon signs, billboards, and awnings.
+function nearWallProp(x, z, y, placed, pad = 0.12, yBand = 0.55) {
+  for (const p of placed) {
+    if (p.mount !== "wall") continue;
+    if (Math.hypot(x - p.x, z - p.z) < p.r + pad && Math.abs(y - p.y) < yBand) return true;
+  }
+  return false;
+}
+
+// Window lights along the outline edges — still one InstancedMesh per level
+// (pane size variants ride the instance matrix scale). Each edge rolls a
+// personality: ~25% stay blank, the rest pick 1-3 rows and a pane variant.
+// Slots skip on seeded gaps (lone holes plus runs of 2-3) and near placed
+// wall props, so facades read irregular and nothing glows under a sign.
+function addWindows(group, edges, rand, bias = 0, placed = []) {
   const slots = [];
   for (const e of edges) {
     if (e.len <= 0.8) continue;
-    const cols = Math.floor(e.len / 0.4);
+    if (rand() < 0.25) continue; // blank facade — no windows on this edge
+    const pRoll = rand();
+    const pane = pRoll < 0.3 ? PANES[0] : pRoll < 0.85 ? PANES[1] : PANES[2];
+    let rowYs;
+    if (pane.single) {
+      rowYs = [0.7]; // shopfront band
+    } else {
+      const rows = 1 + Math.floor(rand() * 3);
+      const start = Math.floor(rand() * (4 - rows));
+      rowYs = [0.6, 1.2, 1.8].slice(start, start + rows);
+    }
+    const cols = Math.floor(e.len / pane.pitch);
+    if (cols < 1) continue;
     const ux = (e.bx - e.ax) / e.len;
     const uz = (e.bz - e.az) / e.len;
     const ry = Math.atan2(e.nx, e.nz);
-    const pad = (e.len - (cols - 1) * 0.4) / 2;
-    for (let i = 0; i < cols; i++) {
-      const x = e.ax + ux * (pad + i * 0.4) + e.nx * 0.02;
-      const z = e.az + uz * (pad + i * 0.4) + e.nz * 0.02;
-      slots.push({ x, y: 0.6, z, ry }, { x, y: 1.2, z, ry }, { x, y: 1.8, z, ry });
+    const pad = (e.len - (cols - 1) * pane.pitch) / 2;
+    for (const y of rowYs) {
+      let run = 0; // remaining slots in a seeded dark streak
+      for (let i = 0; i < cols; i++) {
+        if (run > 0) {
+          run--;
+          continue;
+        }
+        const gap = rand();
+        if (gap < 0.25) continue; // lone dark slot
+        if (gap < 0.33) {
+          run = 1 + Math.floor(rand() * 2); // streak: 2-3 slots total go dark
+          continue;
+        }
+        const x = e.ax + ux * (pad + i * pane.pitch) + e.nx * 0.02;
+        const z = e.az + uz * (pad + i * pane.pitch) + e.nz * 0.02;
+        if (nearWallProp(x, z, y, placed)) continue;
+        slots.push({ x, y, z, ry, sx: pane.w / 0.18, sy: pane.h / 0.26 });
+      }
     }
   }
   if (slots.length > 150) slots.length = 150; // deterministic truncation
@@ -418,11 +478,14 @@ function addWindows(group, edges, rand, bias = 0) {
 
   const mesh = new THREE.InstancedMesh(WINDOW_GEO, WINDOW_MAT, slots.length);
   const m = new THREE.Matrix4();
+  const pos = new THREE.Vector3();
+  const quat = new THREE.Quaternion();
+  const scl = new THREE.Vector3();
+  const UP = new THREE.Vector3(0, 1, 0);
   const color = new THREE.Color();
   for (let i = 0; i < slots.length; i++) {
     const s = slots[i];
-    m.makeRotationY(s.ry);
-    m.setPosition(s.x, s.y, s.z);
+    m.compose(pos.set(s.x, s.y, s.z), quat.setFromAxisAngle(UP, s.ry), scl.set(s.sx, s.sy, 1));
     mesh.setMatrixAt(i, m);
     const roll = rand();
     color.setHex(roll < WINDOW_LIT_RATE ? windowColor(roll / WINDOW_LIT_RATE, bias) : WINDOW_DARK);
@@ -430,6 +493,83 @@ function addWindows(group, edges, rand, bias = 0) {
   }
   group.add(mesh);
   windowMeshes.push({ mesh, y: group.position.y, bias });
+}
+
+// Facade detailing: cheap frozen geometry flush against the walls (cladding
+// patches, duct runs, diagonal braces, vent grilles) so faces between
+// windows read built instead of blank. Collision-exempt — they only dodge
+// placed wall props, reusing the window exclusion test with a wider pad.
+function addFacadeDetails(group, edges, rand, family, placed) {
+  const perimeter = edges.reduce((s, e) => s + e.len, 0);
+  const budget = Math.floor(perimeter / 4);
+  const tint = (dl, ds = 0) =>
+    new THREE.MeshLambertMaterial({ color: familyColor(family, rand).offsetHSL(0, ds, dl) });
+  for (let n = 0; n < budget; n++) {
+    const e = pickEdge(edges, rand, 1.0);
+    const ux = (e.bx - e.ax) / e.len;
+    const uz = (e.bz - e.az) / e.len;
+    const ry = Math.atan2(e.nx, e.nz);
+    const t = 0.2 + rand() * 0.6; // stay off the corners
+    const px = e.ax + ux * e.len * t;
+    const pz = e.az + uz * e.len * t;
+    const kind = rand();
+    let obj;
+    let y;
+    let off; // outward shift along the normal (keeps the back face buried)
+    let tilt = 0;
+    if (kind < 0.4) {
+      // cladding patch: slightly proud box, darker or lighter than the slab
+      const cw = 0.6 + rand() * 0.8;
+      const ch = 0.4 + rand() * 0.5;
+      obj = new THREE.Mesh(new THREE.BoxGeometry(cw, ch, 0.05), tint(rand() < 0.5 ? -0.05 : 0.05));
+      y = 0.5 + rand() * 1.3;
+      off = 0.015;
+    } else if (kind < 0.6) {
+      // horizontal duct run along the edge with 1-2 elbow stubs dropping off
+      obj = new THREE.Group();
+      const len = Math.max(0.5, Math.min(e.len - 0.4, 0.9 + rand() * 1.1));
+      const mat = tint(0.03, -0.08);
+      const duct = new THREE.Mesh(new THREE.BoxGeometry(len, 0.09, 0.09), mat);
+      obj.add(duct);
+      const stubs = 1 + Math.floor(rand() * 2);
+      for (let i = 0; i < stubs; i++) {
+        const stub = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.3, 0.09), mat);
+        stub.position.set((i === 0 ? -1 : 1) * (len / 2 - 0.045), -0.17, 0);
+        obj.add(stub);
+      }
+      y = 0.4 + rand() * 1.5;
+      off = 0.035;
+    } else if (kind < 0.8) {
+      // diagonal brace: thin box tilted ~±0.6 rad in the wall plane
+      const len = 0.8 + rand() * 0.8;
+      obj = new THREE.Mesh(new THREE.BoxGeometry(0.07, len, 0.04), tint(-0.04));
+      y = 0.7 + rand();
+      off = 0.01;
+      tilt = (rand() < 0.5 ? -1 : 1) * (0.5 + rand() * 0.2);
+    } else {
+      // vent grille: small dark box with 2-3 darker slats
+      obj = new THREE.Group();
+      const back = new THREE.Mesh(
+        new THREE.BoxGeometry(0.32, 0.24, 0.04),
+        new THREE.MeshLambertMaterial({ color: 0x1c1c24 })
+      );
+      obj.add(back);
+      const slats = 2 + Math.floor(rand() * 2);
+      const slatMat = new THREE.MeshLambertMaterial({ color: 0x101018 });
+      for (let i = 0; i < slats; i++) {
+        const slat = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.03, 0.01), slatMat);
+        slat.position.set(0, (i - (slats - 1) / 2) * 0.07, 0.025);
+        obj.add(slat);
+      }
+      y = 0.6 + rand() * 1.2;
+      off = 0.01;
+    }
+    if (nearWallProp(px, pz, y, placed, 0.4)) continue; // rand stays consumed — deterministic
+    obj.position.set(px + e.nx * off, y, pz + e.nz * off);
+    // Euler XYZ applies Z first: tilt in the wall plane, then face the normal
+    obj.rotation.set(0, ry, tilt);
+    group.add(obj);
+  }
 }
 
 // Ambient life: every ~0.5s one window near the camera flips lit/dark.
@@ -451,28 +591,49 @@ function windowFlickerTick() {
   };
 }
 
+// Decorates a level and returns the `placed` footprint list so the window
+// and facade passes that follow can stay clear of the props.
 function decorate(group, level, rand, startIso) {
   const size = group.userData.size;
   const levelDate = startIso ? dateOfDay(startIso, level.day) : "2026-06-10";
   const available = propsAvailableOn(PROPS, levelDate);
-  const totalWeight = available.reduce((s, p) => s + p.weight, 0);
-  const count = totalWeight ? 5 + Math.floor(rand() * 6) : 0;
-  const placed = []; // { x, z, y, r } footprints already claimed on this level
+  const placed = []; // { x, z, y, r, mount } footprints already claimed on this level
 
-  for (let i = 0; i < count; i++) {
-    let roll = rand() * totalWeight;
-    const prop = available.find((p) => (roll -= p.weight) <= 0) ?? available[0];
-    const obj = prop.build(THREE, rand, { w: size.w, d: size.d });
-    obj.scale.setScalar(PROP_SCALE);
-    if (!placeProp(obj, prop.mount, size, rand, prop.radius * PROP_SCALE, placed)) continue; // skip overlaps
-    group.add(obj);
-    if (obj.userData.tick) ticks.push(obj.userData.tick);
+  // Geometry-scaled budgets so big plates don't read empty: walls earn props
+  // by perimeter, roofs by floor area, ledges keep the old flat roll. Each
+  // takes a seeded ±1 jitter; the sum is capped (trim the largest) at 18.
+  const perimeter = size.edges.reduce((s, e) => s + e.len, 0);
+  const area = polygonArea(size.poly);
+  const jitter = () => Math.floor(rand() * 3) - 1;
+  const budgets = {
+    wall: Math.max(0, 2 + Math.floor(perimeter / 3.5) + jitter()),
+    roof: Math.max(0, 1 + Math.floor(area / 8) + jitter()),
+    ledge: Math.max(0, 5 + Math.floor(rand() * 6) + jitter()),
+  };
+  while (budgets.wall + budgets.roof + budgets.ledge > 18) {
+    const top = ["wall", "roof", "ledge"].reduce((a, b) => (budgets[a] >= budgets[b] ? a : b));
+    budgets[top]--;
+  }
+
+  for (const mount of ["wall", "roof", "ledge"]) {
+    const pool = available.filter((p) => p.mount === mount);
+    const poolWeight = pool.reduce((s, p) => s + p.weight, 0);
+    if (!poolWeight) continue;
+    for (let i = 0; i < budgets[mount]; i++) {
+      let roll = rand() * poolWeight;
+      const prop = pool.find((p) => (roll -= p.weight) <= 0) ?? pool[0];
+      const obj = prop.build(THREE, rand, { w: size.w, d: size.d });
+      obj.scale.setScalar(PROP_SCALE);
+      if (!placeProp(obj, prop.mount, size, rand, prop.radius * PROP_SCALE, placed)) continue; // skip overlaps
+      group.add(obj);
+      if (obj.userData.tick) ticks.push(obj.userData.tick);
+    }
   }
 
   // Furnish every terrace so no deck reads as bare: one people group plus 1-3
   // weighted ledge props from the date-gated library, packed tighter (0.85 of
   // the usual footprint) with extra placement retries.
-  if (size.terrace && totalWeight) {
+  if (size.terrace && available.length) {
     const ledge = available.filter((p) => p.mount === "ledge");
     const ledgeWeight = ledge.reduce((s, p) => s + p.weight, 0);
     const furnishings = [];
@@ -494,6 +655,7 @@ function decorate(group, level, rand, startIso) {
   }
 
   for (const missDay of level.scars) addScar(group, size, missDay);
+  return placed;
 }
 
 // A candidate (x,z,y,r) collides if any prior footprint is closer than the
@@ -517,7 +679,7 @@ function placeOnTerrace(obj, t, rand, radius, placed, tries = 6) {
     if (collides(x, z, y, radius, placed)) continue;
     obj.position.set(x, y, z);
     obj.rotation.y = ry;
-    placed.push({ x, z, y, r: radius });
+    placed.push({ x, z, y, r: radius, mount: "ledge" });
     return true;
   }
   return false;
@@ -564,7 +726,7 @@ function placeProp(obj, mount, size, rand, radius, placed) {
     if (collides(x, z, y, radius, placed)) continue;
     obj.position.set(x, y, z);
     obj.rotation.y = ry;
-    placed.push({ x, z, y, r: radius });
+    placed.push({ x, z, y, r: radius, mount });
     return true;
   }
   return false;

@@ -759,15 +759,22 @@ function frame(ms) {
   if (document.hidden) return;
   const t = ms / 1000;
   controls.update();
-  // clamp the pan target so the camera can't fly away from the tower;
+  // keep the orbit pivot glued to the tower axis: lateral pan is allowed only
+  // a little (framing), so one-finger drag always orbits around the tower;
   // shift the camera by the same correction so the view doesn't tilt
-  const tx = Math.min(Math.max(controls.target.x, -10), 10);
+  const tx = Math.min(Math.max(controls.target.x, -1.5), 1.5);
   const ty = Math.min(Math.max(controls.target.y, 1), topY + 8);
-  const tz = Math.min(Math.max(controls.target.z, -10), 10);
+  const tz = Math.min(Math.max(controls.target.z, -1.5), 1.5);
   camera.position.x += tx - controls.target.x;
   camera.position.y += ty - controls.target.y;
   camera.position.z += tz - controls.target.z;
   controls.target.set(tx, ty, tz);
+  // while idle, ease the pivot back onto the axis (no camera compensation:
+  // this intentionally re-frames the tower to center)
+  if (controls.autoRotate) {
+    controls.target.x *= 0.98;
+    controls.target.z *= 0.98;
+  }
   for (const tick of ticks) tick(t);
   renderer.render(scene, camera);
   schedule();

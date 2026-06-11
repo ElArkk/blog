@@ -5,19 +5,20 @@ import { PROPS, NEON, propsAvailableOn } from "./props.js";
 
 const STATE_URL = "https://elarkk--obsidian-agents-tower-state.modal.run";
 
-const LEVEL_H = 1.6;
-const LEVEL_W = 3.6;
-const LEVEL_D = 3.6;
+const LEVEL_H = 2.4;
+const LEVEL_W = 5.4;
+const LEVEL_D = 5.4;
 const SLAB_TOP = LEVEL_H / 2 + (LEVEL_H * 0.94) / 2; // top face of a level slab
 const INTERNAL_WIDTH = 320; // PS1 pipeline: render small, upscale with hard pixels
 const MOON_LEVEL = 365;
 const SKY = 0x141020;
+const PROP_SCALE = 1.35; // grand-scale pass: props grow with the bigger plates
 
 const canvas = document.getElementById("tower-canvas");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(SKY);
-scene.fog = new THREE.Fog(SKY, 10, 34);
+scene.fog = new THREE.Fog(SKY, 12, 48);
 // far plane reaches the moon (~level 365 * LEVEL_H) so the goal is always visible
 const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 1200);
 
@@ -27,7 +28,7 @@ let controls; // OrbitControls, created in setupControls after buildWorld
 
 // window-light grids: one InstancedMesh per level, shared geometry/material
 const windowMeshes = []; // { mesh, y } — registry for the ambient flicker tick
-const WINDOW_GEO = new THREE.BoxGeometry(0.14, 0.2, 0.03);
+const WINDOW_GEO = new THREE.BoxGeometry(0.18, 0.26, 0.04);
 const WINDOW_MAT = new THREE.MeshBasicMaterial({ color: 0xffffff }); // tinted per instance
 const WINDOW_LIT_RATE = 0.4;
 const WINDOW_DARK = 0x12121c;
@@ -117,11 +118,11 @@ function updateHud(state) {
 
 function buildWorld(state) {
   const { levels, rubble } = replay(state.results || "");
-  topY = Math.max(levels.length * LEVEL_H, LEVEL_H) + 2;
+  topY = Math.max(levels.length * LEVEL_H, LEVEL_H) + 3;
 
   // ground disc
   const ground = new THREE.Mesh(
-    new THREE.CylinderGeometry(10, 10, 0.5, 24),
+    new THREE.CylinderGeometry(15, 15, 0.5, 24),
     new THREE.MeshLambertMaterial({ color: 0x1a1726 })
   );
   ground.position.y = -0.25;
@@ -152,8 +153,8 @@ function buildLevel(level, index, startIso) {
   // main massing block: irregular extruded floor plan + staggered stacking offset
   const w = LEVEL_W * (0.6 + rand() * 0.7);
   const d = LEVEL_D * (0.6 + rand() * 0.7);
-  const offX = (rand() - 0.5) * 0.8;
-  const offZ = (rand() - 0.5) * 0.8;
+  const offX = (rand() - 0.5) * 1.2;
+  const offZ = (rand() - 0.5) * 1.2;
   const { poly, edges } = buildOutline(w, d, offX, offZ, rand);
   const shape = new THREE.Shape();
   shape.moveTo(poly[0][0], poly[0][1]);
@@ -163,16 +164,16 @@ function buildLevel(level, index, startIso) {
     slabMat()
   );
   // shape XY lies in world XZ after this rotation; the extrusion runs straight
-  // down so the slab spans y 0.048..SLAB_TOP like the old box did
+  // down so the slab spans y 0.072..SLAB_TOP like the old box did
   slab.rotation.x = Math.PI / 2;
   slab.position.y = SLAB_TOP;
   group.add(slab);
 
-  // 0-2 jut boxes half-sunk into a face: extra corners and edges
-  const juts = Math.floor(rand() * 3);
+  // 1-3 jut boxes half-sunk into a face: extra corners and edges
+  const juts = 1 + Math.floor(rand() * 3);
   for (let i = 0; i < juts; i++) {
-    const jw = 0.5 + rand() * 1.1;
-    const jd = 0.5 + rand() * 1.1;
+    const jw = 0.7 + rand() * 1.5;
+    const jd = 0.7 + rand() * 1.5;
     const jh = LEVEL_H * (0.35 + rand() * 0.59);
     const side = Math.floor(rand() * 4);
     const along = (rand() - 0.5) * 0.7 * (side < 2 ? w : d);
@@ -185,9 +186,9 @@ function buildLevel(level, index, startIso) {
 
   // terrace: outdoor deck at roof height with railing posts (people live here)
   let terrace = null;
-  if (rand() < 0.5) {
-    const tw = 0.9 + rand() * 1.1;
-    const td = 0.9 + rand() * 1.1;
+  if (rand() < 0.6) {
+    const tw = 1.3 + rand() * 1.7;
+    const td = 1.3 + rand() * 1.7;
     const side = Math.floor(rand() * 4);
     let tx = offX + (rand() - 0.5) * w * 0.4;
     let tz = offZ + (rand() - 0.5) * d * 0.4;
@@ -202,10 +203,10 @@ function buildLevel(level, index, startIso) {
     for (const [px, pz] of [
       [-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1],
     ]) {
-      const post = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.22, 0.03), postMat);
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.3, 0.03), postMat);
       post.position.set(
         tx + (px * (tw - 0.06)) / 2,
-        SLAB_TOP + 0.19,
+        SLAB_TOP + 0.23,
         tz + (pz * (td - 0.06)) / 2
       );
       group.add(post);
@@ -363,24 +364,24 @@ function pickEdge(edges, rand, minLen = 0.5) {
   return usable[usable.length - 1];
 }
 
-// Two rows of window lights along every outline edge long enough to hold
+// Three rows of window lights along every outline edge long enough to hold
 // them — one InstancedMesh per level keeps it one draw call.
 function addWindows(group, edges, rand) {
   const slots = [];
   for (const e of edges) {
     if (e.len <= 0.8) continue;
-    const cols = Math.floor(e.len / 0.34);
+    const cols = Math.floor(e.len / 0.4);
     const ux = (e.bx - e.ax) / e.len;
     const uz = (e.bz - e.az) / e.len;
     const ry = Math.atan2(e.nx, e.nz);
-    const pad = (e.len - (cols - 1) * 0.34) / 2;
+    const pad = (e.len - (cols - 1) * 0.4) / 2;
     for (let i = 0; i < cols; i++) {
-      const x = e.ax + ux * (pad + i * 0.34) + e.nx * 0.02;
-      const z = e.az + uz * (pad + i * 0.34) + e.nz * 0.02;
-      slots.push({ x, y: 0.55, z, ry }, { x, y: 1.05, z, ry });
+      const x = e.ax + ux * (pad + i * 0.4) + e.nx * 0.02;
+      const z = e.az + uz * (pad + i * 0.4) + e.nz * 0.02;
+      slots.push({ x, y: 0.6, z, ry }, { x, y: 1.2, z, ry }, { x, y: 1.8, z, ry });
     }
   }
-  if (slots.length > 90) slots.length = 90; // deterministic truncation
+  if (slots.length > 150) slots.length = 150; // deterministic truncation
   if (!slots.length) return;
 
   const mesh = new THREE.InstancedMesh(WINDOW_GEO, WINDOW_MAT, slots.length);
@@ -423,14 +424,15 @@ function decorate(group, level, rand, startIso) {
   const levelDate = startIso ? dateOfDay(startIso, level.day) : "2026-06-10";
   const available = propsAvailableOn(PROPS, levelDate);
   const totalWeight = available.reduce((s, p) => s + p.weight, 0);
-  const count = totalWeight ? 3 + Math.floor(rand() * 5) : 0;
+  const count = totalWeight ? 5 + Math.floor(rand() * 6) : 0;
   const placed = []; // { x, z, y, r } footprints already claimed on this level
 
   for (let i = 0; i < count; i++) {
     let roll = rand() * totalWeight;
     const prop = available.find((p) => (roll -= p.weight) <= 0) ?? available[0];
     const obj = prop.build(THREE, rand, { w: size.w, d: size.d });
-    if (!placeProp(obj, prop.mount, size, rand, prop.radius, placed)) continue; // skip overlaps
+    obj.scale.setScalar(PROP_SCALE);
+    if (!placeProp(obj, prop.mount, size, rand, prop.radius * PROP_SCALE, placed)) continue; // skip overlaps
     group.add(obj);
     if (obj.userData.tick) ticks.push(obj.userData.tick);
   }
@@ -440,7 +442,11 @@ function decorate(group, level, rand, startIso) {
     const people = available.find((p) => p.name === "people");
     if (people) {
       const crowd = people.build(THREE, rand, { w: size.w, d: size.d });
-      if (placeOnTerrace(crowd, size.terrace, rand, people.radius, placed)) group.add(crowd);
+      crowd.scale.setScalar(PROP_SCALE);
+      if (placeOnTerrace(crowd, size.terrace, rand, people.radius * PROP_SCALE, placed)) {
+        group.add(crowd);
+        if (crowd.userData.tick) ticks.push(crowd.userData.tick);
+      }
     }
   }
 
@@ -574,7 +580,7 @@ function addRubble(count) {
       new THREE.MeshLambertMaterial({ color: 0x232030 })
     );
     const a = rand() * Math.PI * 2;
-    const r = 2.8 + rand() * 3.5;
+    const r = 4 + rand() * 5;
     chunk.position.set(Math.cos(a) * r, s * 0.3, Math.sin(a) * r);
     chunk.rotation.y = rand() * Math.PI;
     scene.add(chunk);
@@ -595,7 +601,7 @@ function addMilestones(height) {
           new THREE.MeshLambertMaterial({ color: 0x3a3650, transparent: true, opacity: 0.7 })
         );
         const a = rand() * Math.PI * 2;
-        const r = 6 + rand() * 4;
+        const r = 9 + rand() * 5;
         cloud.position.set(Math.cos(a) * r, y + (rand() - 0.5), Math.sin(a) * r);
         scene.add(cloud);
       }
@@ -605,7 +611,7 @@ function addMilestones(height) {
         new THREE.SphereGeometry(0.7, 8, 8),
         new THREE.MeshLambertMaterial({ color: 0xbb4455 })
       );
-      balloon.position.set(5.5, y, 2);
+      balloon.position.set(8, y, 2);
       balloon.userData.animated = true; // tick bobs it
       scene.add(balloon);
       ticks.push((t) => { balloon.position.y = y + Math.sin(t * 0.5 + lvl) * 0.4; });
@@ -619,7 +625,7 @@ function addMilestones(height) {
       scene.add(sat);
       ticks.push((t) => {
         const a = t * 0.1 + lvl;
-        sat.position.set(Math.cos(a) * 9, y, Math.sin(a) * 9);
+        sat.position.set(Math.cos(a) * 13, y, Math.sin(a) * 13);
         sat.rotation.y = a;
       });
     }
@@ -669,7 +675,7 @@ function addAmbient(height) {
   const rp = new Float32Array(RAIN * 6);
   const seeds = [];
   for (let i = 0; i < RAIN; i++) {
-    seeds.push({ x: (rand() - 0.5) * 24, z: (rand() - 0.5) * 24, off: rand() * 30, sp: 9 + rand() * 5 });
+    seeds.push({ x: (rand() - 0.5) * 32, z: (rand() - 0.5) * 32, off: rand() * 30, sp: 9 + rand() * 5 });
   }
   rainGeo.setAttribute("position", new THREE.BufferAttribute(rp, 3));
   const rain = new THREE.LineSegments(
@@ -681,7 +687,7 @@ function addAmbient(height) {
   ticks.push((t) => {
     for (let i = 0; i < RAIN; i++) {
       const s = seeds[i];
-      const y = camera.position.y + 14 - ((t * s.sp + s.off) % 28);
+      const y = camera.position.y + 17 - ((t * s.sp + s.off) % 34);
       rp[i * 6] = s.x; rp[i * 6 + 1] = y; rp[i * 6 + 2] = s.z;
       rp[i * 6 + 3] = s.x; rp[i * 6 + 4] = y - 0.5; rp[i * 6 + 5] = s.z;
     }
@@ -691,7 +697,7 @@ function addAmbient(height) {
 
 function wayPoint(rand, towerTop) {
   const a = rand() * Math.PI * 2;
-  const r = 4 + rand() * 5;
+  const r = 6 + rand() * 7;
   return new THREE.Vector3(Math.cos(a) * r, 1 + rand() * towerTop, Math.sin(a) * r);
 }
 
@@ -739,8 +745,8 @@ function setupControls() {
   controls = new OrbitControls(camera, canvas);
   controls.enableDamping = true;
   controls.dampingFactor = 0.08;
-  controls.minDistance = 3;
-  controls.maxDistance = 30; // fog starts eating the world at ~34
+  controls.minDistance = 4;
+  controls.maxDistance = 45; // fog starts eating the world at ~48
   controls.autoRotate = true;
   controls.autoRotateSpeed = 0.5;
   controls.screenSpacePanning = true; // vertical pan moves along camera-up = climbs
@@ -748,7 +754,7 @@ function setupControls() {
   controls.listenToKeyEvents(window); // arrow keys pan/climb
   // start near the top, like the old fixed orbit did
   controls.target.set(0, Math.max(4, topY - 2), 0);
-  camera.position.set(14, controls.target.y + 1, 0);
+  camera.position.set(19, controls.target.y + 1, 0);
 
   // shift+scroll climbs the tower (capture phase beats OrbitControls' zoom)
   canvas.addEventListener(
@@ -799,9 +805,9 @@ function frame(ms) {
   // keep the orbit pivot glued to the tower axis: lateral pan is allowed only
   // a little (framing), so one-finger drag always orbits around the tower;
   // shift the camera by the same correction so the view doesn't tilt
-  const tx = Math.min(Math.max(controls.target.x, -1.5), 1.5);
+  const tx = Math.min(Math.max(controls.target.x, -2.5), 2.5);
   const ty = Math.min(Math.max(controls.target.y, 1), topY + 8);
-  const tz = Math.min(Math.max(controls.target.z, -1.5), 1.5);
+  const tz = Math.min(Math.max(controls.target.z, -2.5), 2.5);
   camera.position.x += tx - controls.target.x;
   camera.position.y += ty - controls.target.y;
   camera.position.z += tz - controls.target.z;

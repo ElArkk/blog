@@ -241,12 +241,12 @@ export const PROPS = [
     addedOn: "2026-06-10",
     mount: "ledge",
     weight: 4,
-    radius: 0.35,
+    radius: 0.45,
     build(T, rand) {
       const g = new T.Group();
       // Dim skin-ish head tones (seeded variation): reads dark at distance.
       const SKIN = [0x6a5a50, 0x5e4f46, 0x74604f, 0x55483f, 0x6f5a4a];
-      const n = 1 + Math.floor(rand() * 4); // 1-4 figures
+      const n = 2 + Math.floor(rand() * 4); // 2-5 figures
       const figures = [];
       for (let i = 0; i < n; i++) {
         const person = new T.Group();
@@ -378,6 +378,7 @@ export const PROPS = [
       // Rare walker: one figure paces a short seeded path (all captured here).
       if (rand() < 0.15) {
         const walker = figures[Math.floor(rand() * figures.length)];
+        walker.userData.animated = true; // tick moves it — keep out of the matrix freeze
         const startX = walker.position.x;
         const span = 0.3 + rand() * 0.2; // ±0.3-0.5 endpoints
         const speed = 0.25 + rand() * 0.5;
@@ -471,6 +472,7 @@ export const PROPS = [
       pole.position.y = ph / 2;
       // `cloth` is a pivot at the pole top so the sway hinges on the pole.
       const cloth = new T.Group();
+      cloth.userData.animated = true; // tick rotates it — keep out of the matrix freeze
       cloth.position.set(0.015, ph - 0.12, 0);
       const fw = 0.26 + rand() * 0.14;
       const col = rand() < 0.4 ? pickNeon(rand) : CLOTH[Math.floor(rand() * CLOTH.length)];

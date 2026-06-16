@@ -6,25 +6,36 @@ import { PROPS, NEON, propsAvailableOn } from "./props.js";
 const STATE_URL = "https://elarkk--obsidian-personal-tower-state.modal.run";
 
 const LEVEL_H = 2.4;
-const LEVEL_W = 5.4;
-const LEVEL_D = 5.4;
+const LEVEL_W = 9.2; // grand-scale pass: broad plates (+70%)
+const LEVEL_D = 9.2;
 const SLAB_TOP = LEVEL_H / 2 + (LEVEL_H * 0.94) / 2; // top face of a level slab
-const INTERNAL_WIDTH = 320; // PS1 pipeline: render small, upscale with hard pixels
+const INTERNAL_WIDTH = 480; // PS1 pipeline: render small-ish, upscale with hard pixels
 const MOON_LEVEL = 365;
 const SKY = 0x141020;
-const PROP_SCALE = 1.35; // grand-scale pass: props grow with the bigger plates
+const PROP_SCALE = 1.5; // grand-scale pass: props grow with the bigger plates
 
 const canvas = document.getElementById("tower-canvas");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(SKY);
-scene.fog = new THREE.Fog(SKY, 12, 48);
+scene.fog = new THREE.Fog(SKY, 14, 64);
 // far plane reaches the moon (~level 365 * LEVEL_H) so the goal is always visible
 const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 1200);
 
 const ticks = []; // per-frame animation callbacks: fn(t)
 let topY = LEVEL_H; // camera clamp ceiling, set by buildWorld
 let controls; // OrbitControls, created in setupControls after buildWorld
+
+// Level-bound animation ticks skip when their level is far from the camera —
+// cheap insurance so a tall tower's off-screen props don't all run every
+// frame. All ticks are pure functions of absolute t, so pausing while
+// off-screen and resuming is seamless. Global ticks (moon, rain, drones,
+// elevator) are pushed straight onto `ticks`; the window flicker self-culls.
+function pushLevelTick(fn, y) {
+  ticks.push((t) => {
+    if (Math.abs(y - camera.position.y) < 34) fn(t);
+  });
+}
 
 // window-light grids: one InstancedMesh per level, shared geometry/material.
 // The geometry is the standard pane; size variants scale the instance matrix.
@@ -153,7 +164,7 @@ function buildWorld(state) {
 
   // ground disc
   const ground = new THREE.Mesh(
-    new THREE.CylinderGeometry(15, 15, 0.5, 24),
+    new THREE.CylinderGeometry(20, 20, 0.5, 28),
     new THREE.MeshLambertMaterial({ color: 0x1a1726 })
   );
   ground.position.y = -0.25;
@@ -179,9 +190,11 @@ function buildLevel(level, index, startIso) {
   const family = PALETTES[famIndex];
   const slabMat = () => new THREE.MeshLambertMaterial({ color: familyColor(family, rand) });
 
-  // main massing block: irregular extruded floor plan + staggered stacking offset
-  const w = LEVEL_W * (0.6 + rand() * 0.7);
-  const d = LEVEL_D * (0.6 + rand() * 0.7);
+  // main massing block: irregular extruded floor plan + staggered stacking offset.
+  // Wide size spread (0.45..1.7) so plates differ a lot floor to floor — some
+  // squat and broad, some narrow towers, the rest open platforms in between.
+  const w = LEVEL_W * (0.45 + rand() * 1.25);
+  const d = LEVEL_D * (0.45 + rand() * 1.25);
   const offX = (rand() - 0.5) * 1.2;
   const offZ = (rand() - 0.5) * 1.2;
   const { poly, edges } = buildOutline(w, d, offX, offZ, rand);
@@ -198,8 +211,9 @@ function buildLevel(level, index, startIso) {
   slab.position.y = SLAB_TOP;
   group.add(slab);
 
-  // 1-3 jut boxes half-sunk into a face: extra corners and edges
-  const juts = 1 + Math.floor(rand() * 3);
+  // 0-3 jut boxes half-sunk into a face: extra corners and edges (0 leaves a
+  // clean open plate, which the prop passes then fill with breathing room)
+  const juts = Math.floor(rand() * 4);
   for (let i = 0; i < juts; i++) {
     const jw = 0.7 + rand() * 1.5;
     const jd = 0.7 + rand() * 1.5;
@@ -223,32 +237,54 @@ function buildLevel(level, index, startIso) {
     group.add(jut);
   }
 
-  // terrace: outdoor deck at roof height with railing posts (people live here)
+  // balcony: a bay that cantilevers off one face with real mass + a solid
+  // parapet — not a thin floating plate. The deck top is flush with the roof
+  // slab (props stand on it) and the bay keys back into the slab so it reads
+  // as a protrusion grown from the level.
   let terrace = null;
   if (rand() < 0.6) {
-    const tw = 1.3 + rand() * 1.7;
-    const td = 1.3 + rand() * 1.7;
+    const along = 2.4 + rand() * 2.6; // width parallel to the facade
+    const out = 1.3 + rand() * 1.4; // shallow cantilever depth
+    const overlap = 0.7; // how far the bay keys back into the slab
     const side = Math.floor(rand() * 4);
-    let tx = offX + (rand() - 0.5) * w * 0.4;
-    let tz = offZ + (rand() - 0.5) * d * 0.4;
-    if (side === 0) tz = offZ + d / 2 + td / 2 - 0.2;
-    else if (side === 1) tz = offZ - d / 2 - td / 2 + 0.2;
-    else if (side === 2) tx = offX + w / 2 + tw / 2 - 0.2;
-    else tx = offX - w / 2 - tw / 2 + 0.2;
-    const plate = new THREE.Mesh(new THREE.BoxGeometry(tw, 0.08, td), slabMat());
-    plate.position.set(tx, SLAB_TOP + 0.04, tz);
-    group.add(plate);
-    const postMat = new THREE.MeshLambertMaterial({ color: 0x55556a });
-    for (const [px, pz] of [
-      [-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1],
-    ]) {
-      const post = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.3, 0.03), postMat);
-      post.position.set(
-        tx + (px * (tw - 0.06)) / 2,
-        SLAB_TOP + 0.23,
-        tz + (pz * (td - 0.06)) / 2
-      );
-      group.add(post);
+    const onx = side === 2 ? 1 : side === 3 ? -1 : 0; // outward normal
+    const onz = side === 0 ? 1 : side === 1 ? -1 : 0;
+    let tw;
+    let td;
+    let tx = offX;
+    let tz = offZ;
+    if (side < 2) {
+      tw = along;
+      td = out;
+      tx = offX + (rand() - 0.5) * w * 0.3;
+      tz = offZ + onz * (d / 2 + out / 2 - overlap);
+    } else {
+      tw = out;
+      td = along;
+      tz = offZ + (rand() - 0.5) * d * 0.3;
+      tx = offX + onx * (w / 2 + out / 2 - overlap);
+    }
+    // protruding bay floor with depth (top flush with the roof slab)
+    const massH = 0.55 + rand() * 0.4;
+    const bay = new THREE.Mesh(new THREE.BoxGeometry(tw, massH, td), slabMat());
+    bay.position.set(tx, SLAB_TOP - massH / 2, tz);
+    group.add(bay);
+    // solid parapet on the three exposed edges (skip the one against the wall)
+    const railH = 0.3;
+    const railT = 0.06;
+    const inset = 0.05;
+    const railMat = new THREE.MeshLambertMaterial({ color: 0x55556a });
+    for (const sz of [-1, 1]) {
+      if (sz === -onz) continue; // the edge keyed into the building gets no rail
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(tw, railH, railT), railMat);
+      rail.position.set(tx, SLAB_TOP + railH / 2, tz + (sz * (td - 2 * inset)) / 2);
+      group.add(rail);
+    }
+    for (const sx of [-1, 1]) {
+      if (sx === -onx) continue;
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(railT, railH, td - 2 * inset), railMat);
+      rail.position.set(tx + (sx * (tw - 2 * inset)) / 2, SLAB_TOP + railH / 2, tz);
+      group.add(rail);
     }
     terrace = { x: tx, z: tz, w: tw, d: td };
   }
@@ -288,7 +324,7 @@ function buildOutline(w, d, offX, offZ, rand) {
   const cuts = [null, null, null, null];
 
   // occasional big L-cut: a quarter bite out of one corner
-  if (rand() < 0.2) {
+  if (rand() < 0.3) {
     const ci = Math.floor(rand() * 4);
     cuts[ci] = {
       a: (0.3 + rand() * 0.2) * L[(ci + 3) % 4],
@@ -313,7 +349,7 @@ function buildOutline(w, d, offX, offZ, rand) {
 
   // 0-2 rectangular notches bitten into the side faces
   const notches = [[], [], [], []];
-  const nNot = Math.floor(rand() * 3);
+  const nNot = Math.floor(rand() * 4);
   for (let k = 0; k < nNot; k++) {
     const si = Math.floor(rand() * 4);
     const half = (0.4 + rand() * 0.6) / 2;
@@ -601,18 +637,35 @@ function decorate(group, level, rand, startIso) {
 
   // Geometry-scaled budgets so big plates don't read empty: walls earn props
   // by perimeter, roofs by floor area, ledges keep the old flat roll. Each
-  // takes a seeded ±1 jitter; the sum is capped (trim the largest) at 18.
+  // takes a seeded ±1 jitter; the sum is capped (trim the largest) at 64.
+  // Roof scales harder with area so big plate interiors don't read empty.
   const perimeter = size.edges.reduce((s, e) => s + e.len, 0);
   const area = polygonArea(size.poly);
   const jitter = () => Math.floor(rand() * 3) - 1;
   const budgets = {
-    wall: Math.max(0, 2 + Math.floor(perimeter / 3.5) + jitter()),
-    roof: Math.max(0, 1 + Math.floor(area / 8) + jitter()),
-    ledge: Math.max(0, 5 + Math.floor(rand() * 6) + jitter()),
+    wall: Math.max(0, 4 + Math.floor(perimeter / 2.5) + jitter()),
+    roof: Math.max(0, 2 + Math.floor(area / 8) + jitter()),
+    ledge: Math.max(0, 12 + Math.floor(rand() * 12) + jitter()),
   };
-  while (budgets.wall + budgets.roof + budgets.ledge > 18) {
+  while (budgets.wall + budgets.roof + budgets.ledge > 64) {
     const top = ["wall", "roof", "ledge"].reduce((a, b) => (budgets[a] >= budgets[b] ? a : b));
     budgets[top]--;
+  }
+
+  // People plaza: scatter crowds across the OPEN roof surface (mount "roof"
+  // => interior placement at slab top), scaled to the plate, BEFORE the dense
+  // prop fill claims the space. This fills the empty plate middles and keeps
+  // people off the edges instead of ringing the perimeter. One crowd goes on
+  // the balcony if there is one; the rest stand out on the platform.
+  const peopleProp = available.find((p) => p.name === "people");
+  if (peopleProp) {
+    const crowds = 3 + Math.floor(area / 12);
+    for (let i = 0; i < crowds; i++) {
+      const obj = peopleProp.build(THREE, rand, { w: size.w, d: size.d });
+      obj.scale.setScalar(PROP_SCALE);
+      const mount = size.terrace && i === 0 ? "ledge" : "roof";
+      if (placeProp(obj, mount, size, rand, peopleProp.radius * PROP_SCALE, placed)) group.add(obj);
+    }
   }
 
   for (const mount of ["wall", "roof", "ledge"]) {
@@ -626,7 +679,7 @@ function decorate(group, level, rand, startIso) {
       obj.scale.setScalar(PROP_SCALE);
       if (!placeProp(obj, prop.mount, size, rand, prop.radius * PROP_SCALE, placed)) continue; // skip overlaps
       group.add(obj);
-      if (obj.userData.tick) ticks.push(obj.userData.tick);
+      if (obj.userData.tick) pushLevelTick(obj.userData.tick, group.position.y);
     }
   }
 
@@ -637,9 +690,7 @@ function decorate(group, level, rand, startIso) {
     const ledge = available.filter((p) => p.mount === "ledge");
     const ledgeWeight = ledge.reduce((s, p) => s + p.weight, 0);
     const furnishings = [];
-    const people = available.find((p) => p.name === "people");
-    if (people) furnishings.push(people);
-    const extra = 1 + Math.floor(rand() * 3); // 1-3 additional ledge props
+    const extra = 2 + Math.floor(rand() * 3); // 2-4 ledge props (people seeded earlier)
     for (let i = 0; i < extra && ledgeWeight; i++) {
       let roll = rand() * ledgeWeight;
       furnishings.push(ledge.find((p) => (roll -= p.weight) <= 0) ?? ledge[0]);
@@ -649,7 +700,7 @@ function decorate(group, level, rand, startIso) {
       obj.scale.setScalar(PROP_SCALE);
       if (placeOnTerrace(obj, size.terrace, rand, prop.radius * PROP_SCALE * 0.85, placed, 10)) {
         group.add(obj);
-        if (obj.userData.tick) ticks.push(obj.userData.tick);
+        if (obj.userData.tick) pushLevelTick(obj.userData.tick, group.position.y);
       }
     }
   }
@@ -766,14 +817,14 @@ function addScar(group, size, missDay) {
     group.add(puff);
     puffs.push({ puff, speed: 0.15 + rand() * 0.2, phase: rand() * 3 });
   }
-  ticks.push((t) => {
+  pushLevelTick((t) => {
     for (const { puff, speed, phase } of puffs) {
       const cycle = ((t * speed + phase) % 1.5);
       puff.position.y = LEVEL_H + cycle;
       puff.material.opacity = 0.25 * (1 - cycle / 1.5);
       puff.lookAt(camera.position);
     }
-  });
+  }, group.position.y);
 }
 
 function addRubble(count) {
@@ -785,7 +836,7 @@ function addRubble(count) {
       new THREE.MeshLambertMaterial({ color: 0x232030 })
     );
     const a = rand() * Math.PI * 2;
-    const r = 4 + rand() * 5;
+    const r = 7 + rand() * 6;
     chunk.position.set(Math.cos(a) * r, s * 0.3, Math.sin(a) * r);
     chunk.rotation.y = rand() * Math.PI;
     scene.add(chunk);
@@ -950,8 +1001,9 @@ function setupControls() {
   controls = new OrbitControls(camera, canvas);
   controls.enableDamping = true;
   controls.dampingFactor = 0.08;
-  controls.minDistance = 4;
-  controls.maxDistance = 45; // fog starts eating the world at ~48
+  controls.zoomSpeed = 6; // bigger dolly step per scroll notch
+  controls.minDistance = 6;
+  controls.maxDistance = 60; // fog starts eating the world at ~64
   controls.autoRotate = true;
   controls.autoRotateSpeed = 0.5;
   controls.screenSpacePanning = true; // vertical pan moves along camera-up = climbs
@@ -959,7 +1011,7 @@ function setupControls() {
   controls.listenToKeyEvents(window); // arrow keys pan/climb
   // start near the top, like the old fixed orbit did
   controls.target.set(0, Math.max(4, topY - 2), 0);
-  camera.position.set(19, controls.target.y + 1, 0);
+  camera.position.set(30, controls.target.y + 1, 0);
 
   // shift+scroll climbs the tower (capture phase beats OrbitControls' zoom)
   canvas.addEventListener(
@@ -1010,9 +1062,9 @@ function frame(ms) {
   // keep the orbit pivot glued to the tower axis: lateral pan is allowed only
   // a little (framing), so one-finger drag always orbits around the tower;
   // shift the camera by the same correction so the view doesn't tilt
-  const tx = Math.min(Math.max(controls.target.x, -2.5), 2.5);
+  const tx = Math.min(Math.max(controls.target.x, -4), 4);
   const ty = Math.min(Math.max(controls.target.y, 1), topY + 8);
-  const tz = Math.min(Math.max(controls.target.z, -2.5), 2.5);
+  const tz = Math.min(Math.max(controls.target.z, -4), 4);
   camera.position.x += tx - controls.target.x;
   camera.position.y += ty - controls.target.y;
   camera.position.z += tz - controls.target.z;

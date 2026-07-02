@@ -43,3 +43,4 @@ yarn-error.log*
 
 CLAUDE.md
 AGENTS.md
+.werkstatt/

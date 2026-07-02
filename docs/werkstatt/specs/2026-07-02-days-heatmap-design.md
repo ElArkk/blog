@@ -38,7 +38,10 @@ Header line in tower-HUD monospace style:
 
 ## Data contract
 
-Endpoint (Modal, obsidian-personal repo — out of scope here) serves:
+Endpoint (Modal, obsidian-personal repo — out of scope here). The Obsidian
+folder was renamed Tower → Days, so the page points at
+`https://elarkk--obsidian-personal-days-state.modal.run` (was `...-tower-state...`);
+adjust if the deployed function name ends up different. It serves:
 
 ```json
 {

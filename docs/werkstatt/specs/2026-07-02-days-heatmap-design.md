@@ -38,10 +38,10 @@ Header line in tower-HUD monospace style:
 
 ## Data contract
 
-Endpoint (Modal, obsidian-personal repo — out of scope here). The Obsidian
-folder was renamed Tower → Days, so the page points at
-`https://elarkk--obsidian-personal-days-state.modal.run` (was `...-tower-state...`);
-adjust if the deployed function name ends up different. It serves:
+Endpoint: Modal app in `~/git/modal-obsidian` (in scope). Renaming the deployed
+function `tower_state` → `days_state` yields the new URL
+`https://elarkk--obsidian-personal-days-state.modal.run` (Modal derives URLs
+from function names). It serves:
 
 ```json
 {
@@ -87,6 +87,8 @@ adjust if the deployed function name ends up different. It serves:
 
 ## File changes
 
+### blog repo
+
 | Change | Path |
 | ------ | ---- |
 | add    | `days/index.html` (page), small pure-JS stats + self-check |
@@ -95,8 +97,24 @@ adjust if the deployed function name ends up different. It serves:
 
 URL moves from `/tower/` to `/days/`. No redirect (page is noindex/private).
 
+### modal-obsidian repo
+
+The store already snapshots each day's goals at day start (`ensure_day`), so
+per-day `{d, t}` and frozen grading come for free: `t = len(rec["goals"])`,
+`d = sum(rec["goals"].values())`.
+
+| Change | What |
+| ------ | ---- |
+| rename | endpoint function `tower_state` → `days_state` (this changes the URL) |
+| edit   | `src/tower.py public_state()`: new wire format — `days` array of `{d, t}` / `null` (paused), `points` = Σd, `streak`/`best` = consecutive perfect days (`d == t`, `t > 0`; paused days skip, misses reset). Today (pending) is included with its live `d/t`. |
+| edit   | `src/telegram/tower_commands.py`: `GOALS_NOTE = "Tower/Goals.md"` → `"Days/Goals.md"` (folder already renamed in the vault); `/tower` command + label → `/days` |
+| keep   | internal names (`src/tower.py`, `TowerStore`, `/data/tower.json`, `tower_finalize` cron) — not user-visible; rename later if it grates |
+
+Deploy + verify: `modal deploy modal_app_personal.py`, curl the new URL, check
+old day statuses still finalize identically (existing tests in
+`tests/test_tower.py` extended for the new wire format).
+
 ## Out of scope
 
-- Modal endpoint update to the new JSON shape (obsidian-personal repo). Until it
-  ships, the page shows the offline/empty state; `?demo=N` works regardless.
 - Multiple habit streams, money stakes, social features.
+- Vault-side changes beyond the already-done Tower → Days folder rename.

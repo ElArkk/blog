@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>days</title>
+<style>
+  html, body { margin: 0; min-height: 100%; background: #0d0a18; }
+  body {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 48px 16px; box-sizing: border-box;
+  }
+  #hud {
+    color: #8f8fb0; font: 13px/1.6 ui-monospace, Menlo, monospace;
+    margin-bottom: 24px; text-align: center; user-select: none;
+  }
+  #hud b { color: #2de0a5; text-shadow: 0 0 8px #2de0a5aa; font-weight: 600; }
+  #hud .partial { color: #9adfff; }
+  #hud .missed { color: #ff3860; text-shadow: 0 0 8px #ff386088; }
+  #hud .offline { color: #ffb300; }
+  #grid-wrap { max-width: 100%; overflow-x: auto; padding: 4px; }
+  #grid {
+    display: grid; grid-template-rows: repeat(7, 15px);
+    grid-auto-flow: column; grid-auto-columns: 15px; gap: 4px;
+  }
+  .cell { border-radius: 3px; background: #1c1930; position: relative; }
+  .cell .segs {
+    position: absolute; inset: 2px;
+    display: flex; flex-direction: column-reverse; gap: 1px;
+  }
+  .cell .segs div { flex: 1; border-radius: 1px; background: #141126; }
+  .cell .segs .on { background: #2de0a5; }
+  .cell.full .segs .on { background: #6ff5ff; }
+  .cell.full { box-shadow: 0 0 7px rgba(111, 245, 255, 0.6); }
+  .cell.miss {
+    background: #3d1220; box-shadow: inset 0 0 3px #ff3860aa;
+    border: 1px solid #ff386055; box-sizing: border-box;
+  }
+  .cell.pause { background: #16132a; }
+  .cell.today { outline: 1px solid #4a4670; }
+  .cell.future { background: rgba(20, 17, 34, 0.33); }
+  .cell.blank { background: transparent; }
+</style>
+</head>
+<body>
+<div id="hud">loading…</div>
+<div id="grid-wrap"><div id="grid"></div></div>
+<script type="module">
+import { computeStats, demoDays } from "./stats.js";
+
+const STATE_URL = "https://elarkk--obsidian-personal-days-state.modal.run";
+const DAY_MS = 86400e3;
+const iso = (ms) => new Date(ms).toISOString().slice(0, 10);
+
+async function loadState() {
+  const demo = new URLSearchParams(location.search).get("demo");
+  if (demo) {
+    const n = Math.min(parseInt(demo, 10) || 140, 2000);
+    const startMs = Date.now() - (n - 1) * DAY_MS;
+    return { start: iso(startMs), days: demoDays(n), demo: true };
+  }
+  try {
+    const res = await fetch(STATE_URL);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const state = await res.json();
+    try {
+      localStorage.setItem("days-state", JSON.stringify(state));
+    } catch {
+      // quota error — fresh state is still valid, just not cached
+    }
+    return state;
+  } catch (err) {
+    console.warn("state fetch failed, using cache", err);
+    const cached = localStorage.getItem("days-state");
+    if (cached) {
+      try {
+        return { ...JSON.parse(cached), offline: true };
+      } catch {
+        // corrupt cache — fall through to empty state
+      }
+    }
+    return { start: null, days: [], offline: true };
+  }
+}
+
+// A day entry is valid when it's {d, t} with 0 <= d <= t; anything malformed
+// renders as paused rather than crashing the grid.
+function counts(day) {
+  const d = Number(day?.d), t = Number(day?.t);
+  if (!Number.isFinite(d) || !Number.isFinite(t) || d < 0 || t < 0 || d > t) return null;
+  return { d, t };
+}
+
+function cell(cls, title) {
+  const el = document.createElement("div");
+  el.className = "cell" + (cls ? " " + cls : "");
+  if (title) el.title = title;
+  return el;
+}
+
+function dayCell(day, dateStr, open) {
+  if (day === null) return cell("pause", `${dateStr} — paused`);
+  const c = counts(day);
+  if (!c) return cell("pause", `${dateStr} — ?`);
+  if (c.d === 0 && !open) return cell("miss", `${dateStr} — 0/${c.t}`);
+  const full = c.t > 0 && c.d === c.t;
+  const el = cell(full ? "full" : open ? "today" : "", `${dateStr} — ${c.d}/${c.t}`);
+  const segs = document.createElement("div");
+  segs.className = "segs";
+  for (let s = 0; s < c.t; s++) {
+    const seg = document.createElement("div");
+    if (s < c.d) seg.className = "on";
+    segs.appendChild(seg);
+  }
+  el.appendChild(segs);
+  return el;
+}
+
+function render(state) {
+  const days = Array.isArray(state.days) ? state.days : [];
+  const computed = computeStats(days.map(counts));
+  const points = state.points ?? computed.points;
+  const streak = state.streak ?? computed.streak;
+  const best = state.best ?? computed.best;
+
+  // tallies over closed days only (today, the trailing entry, is still open)
+  let full = 0, partial = 0, missed = 0;
+  days.slice(0, -1).forEach((day) => {
+    const c = day === null ? null : counts(day);
+    if (!c) return;
+    if (c.t > 0 && c.d === c.t) full += 1;
+    else if (c.d > 0) partial += 1;
+    else missed += 1;
+  });
+
+  const off = state.offline ? ' <span class="offline">[offline]</span>' : "";
+  const demo = state.demo ? " [demo]" : "";
+  document.getElementById("hud").innerHTML =
+    `POINTS <b>${points}</b> · STREAK <b>${streak}</b> · BEST <b>${best}</b> · ` +
+    `FULL <b>${full}</b> · <span class="partial">PARTIAL ${partial}</span> · ` +
+    `<span class="missed">MISSED ${missed}</span>${demo}${off}`;
+
+  if (!state.start || !days.length) return;
+  const grid = document.getElementById("grid");
+  const startMs = Date.parse(state.start + "T00:00:00Z");
+  const offset = (new Date(startMs).getUTCDay() + 6) % 7; // Mon = row 0
+  for (let i = 0; i < offset; i++) grid.appendChild(cell("blank"));
+  days.forEach((day, i) => {
+    grid.appendChild(dayCell(day, iso(startMs + i * DAY_MS), i === days.length - 1));
+  });
+  // faded future cells to the end of the current calendar year
+  const lastMs = startMs + (days.length - 1) * DAY_MS;
+  const endMs = Date.parse(`${new Date(lastMs).getUTCFullYear()}-12-31T00:00:00Z`);
+  for (let ms = lastMs + DAY_MS; ms <= endMs; ms += DAY_MS) {
+    grid.appendChild(cell("future", iso(ms)));
+  }
+}
+
+render(await loadState());
+</script>
+</body>
+</html>

@@ -48,7 +48,7 @@ defaults:
     values:
       image: /assets/img/og/og-default.webp
   - scope:
-      path: "tower"
+      path: "days"
     values:
       sitemap: false
       image_width: 950

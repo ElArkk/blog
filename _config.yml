@@ -51,9 +51,6 @@ defaults:
       path: "days"
     values:
       sitemap: false
-      image_width: 950
-      image_height: 630
-      image_alt: "ElArk's Blog"
 
 # Staticman & reCAPTCHA
 # Set this to your Modal web endpoint base URL (no trailing slash)

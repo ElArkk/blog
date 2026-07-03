@@ -32,6 +32,13 @@ test("empty input", () => {
   assert.deepEqual(computeStats([]), { points: 0, streak: 0, best: 0 });
 });
 
+test("best survives after streak resets", () => {
+  const p = { d: 3, t: 3 };
+  const s = computeStats([p, p, p, { d: 0, t: 3 }, p]);
+  assert.equal(s.streak, 1);
+  assert.equal(s.best, 3);
+});
+
 test("mulberry32 is deterministic", () => {
   const a = mulberry32(7), b = mulberry32(7);
   assert.deepEqual([a(), a(), a()], [b(), b(), b()]);
@@ -40,9 +47,12 @@ test("mulberry32 is deterministic", () => {
 test("demoDays shape: t grows, d never exceeds t", () => {
   const days = demoDays(120, 1);
   assert.equal(days.length, 120);
+  let prevT = 0;
   for (const day of days) {
     if (day === null) continue;
     assert.ok(day.t >= 3 && day.t <= 5);
+    assert.ok(day.t >= prevT, "t must be monotonically non-decreasing");
     assert.ok(day.d >= 0 && day.d <= day.t);
+    prevT = day.t;
   }
 });

@@ -26,7 +26,7 @@
   }
   .cell { border-radius: 3px; background: #1c1930; position: relative; }
   .cell .segs {
-    position: absolute; inset: 2px;
+    position: absolute; inset: 2px; overflow: hidden;
     display: flex; flex-direction: column-reverse; gap: 1px;
   }
   .cell .segs div { flex: 1; border-radius: 1px; background: #141126; }
@@ -56,18 +56,21 @@ const iso = (ms) => new Date(ms).toISOString().slice(0, 10);
 async function loadState() {
   const demo = new URLSearchParams(location.search).get("demo");
   if (demo) {
-    const n = Math.min(parseInt(demo, 10) || 140, 2000);
+    const n = Math.min(Math.max(parseInt(demo, 10) || 140, 1), 2000);
     const startMs = Date.now() - (n - 1) * DAY_MS;
     return { start: iso(startMs), days: demoDays(n), demo: true };
   }
   try {
-    const res = await fetch(STATE_URL);
+    const res = await fetch(STATE_URL, { signal: AbortSignal.timeout(8000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const state = await res.json();
-    try {
-      localStorage.setItem("days-state", JSON.stringify(state));
-    } catch {
-      // quota error — fresh state is still valid, just not cached
+    // only cache sane-shaped state so a bad response can't clobber the last good one
+    if (typeof state.start === "string" && Array.isArray(state.days)) {
+      try {
+        localStorage.setItem("days-state", JSON.stringify(state));
+      } catch {
+        // quota error — fresh state is still valid, just not cached
+      }
     }
     return state;
   } catch (err) {
@@ -95,7 +98,11 @@ function counts(day) {
 function cell(cls, title) {
   const el = document.createElement("div");
   el.className = "cell" + (cls ? " " + cls : "");
-  if (title) el.title = title;
+  if (title) {
+    el.title = title;
+    el.setAttribute("role", "img");
+    el.setAttribute("aria-label", title);
+  }
   return el;
 }
 
@@ -120,9 +127,9 @@ function dayCell(day, dateStr, open) {
 function render(state) {
   const days = Array.isArray(state.days) ? state.days : [];
   const computed = computeStats(days.map(counts));
-  const points = state.points ?? computed.points;
-  const streak = state.streak ?? computed.streak;
-  const best = state.best ?? computed.best;
+  const points = Number(state.points ?? computed.points) || 0;
+  const streak = Number(state.streak ?? computed.streak) || 0;
+  const best = Number(state.best ?? computed.best) || 0;
 
   // tallies over closed days only (today, the trailing entry, is still open)
   let full = 0, partial = 0, missed = 0;
@@ -144,6 +151,7 @@ function render(state) {
   if (!state.start || !days.length) return;
   const grid = document.getElementById("grid");
   const startMs = Date.parse(state.start + "T00:00:00Z");
+  if (!Number.isFinite(startMs)) return;
   const offset = (new Date(startMs).getUTCDay() + 6) % 7; // Mon = row 0
   for (let i = 0; i < offset; i++) grid.appendChild(cell("blank"));
   days.forEach((day, i) => {

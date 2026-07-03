@@ -88,10 +88,11 @@ async function loadState() {
 }
 
 // A day entry is valid when it's {d, t} with 0 <= d <= t; anything malformed
-// renders as paused rather than crashing the grid.
+// renders as paused rather than crashing the grid. t is capped so a poisoned
+// cache can't hang the tab building segment divs.
 function counts(day) {
   const d = Number(day?.d), t = Number(day?.t);
-  if (!Number.isFinite(d) || !Number.isFinite(t) || d < 0 || t < 0 || d > t) return null;
+  if (!Number.isFinite(d) || !Number.isFinite(t) || d < 0 || t < 0 || d > t || t > 50) return null;
   return { d, t };
 }
 
@@ -125,7 +126,8 @@ function dayCell(day, dateStr, open) {
 }
 
 function render(state) {
-  const days = Array.isArray(state.days) ? state.days : [];
+  // length cap mirrors the demo clamp: a poisoned cache can't flood the grid
+  const days = (Array.isArray(state.days) ? state.days : []).slice(0, 2000);
   const computed = computeStats(days.map(counts));
   const points = Number(state.points ?? computed.points) || 0;
   const streak = Number(state.streak ?? computed.streak) || 0;

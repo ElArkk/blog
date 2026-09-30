@@ -8,6 +8,8 @@ image_alt: "Sandboxed background coding agent illustration"
 categories:
   - "agentic"
   - "python"
+  - "security"
+  - "infra"
 excerpt: "A background coding agent with no GitHub write credentials and tightly controlled network egress. Repository writes are replayed deterministically outside the sandbox, so a compromised agent structurally can't reach your repos or the wider network."
 ---
 

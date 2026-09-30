@@ -9,6 +9,8 @@ categories:
   - "python"
   - "infra"
   - "agentic"
+  - "llm"
+  - "self-hosting"
 excerpt: "A missing newline character broke my agentic coding setup for hours. Here's how I debugged a subtle SSE streaming bug while self-hosting Ollama on Modal for OpenCode, plus the full deployment setup."
 ---
 

@@ -10,6 +10,7 @@ categories:
   - "python"
   - "nodejs"
   - "heroku"
+  - "self-hosting"
 excerpt: "I finally got Staticman to work, a very cool self-hosted commenting tool for static sites. I now have full control over the commenting function on my blog, and no registration to any provider is needed to post comments."
 ---
 

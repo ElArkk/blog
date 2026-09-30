@@ -8,6 +8,8 @@ image_alt: "Agentic company risk-assessment workflow illustration"
 categories:
   - "agentic"
   - "python"
+  - "llm"
+  - "risk"
 excerpt: "Lessons from building an automated company research tool: why a focused feedback loop beats both rigid linear pipelines and unconstrained agents."
 ---
 

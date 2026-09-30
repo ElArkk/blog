@@ -9,6 +9,8 @@ categories:
   - "note-taking"
   - "obsidian"
   - "agentic"
+  - "llm"
+  - "security"
 excerpt: "With autonomous AI agents gaining full computer access, I went the opposite direction: a focused tool that only touches my notes. Here's why constraints might be more valuable than capabilities."
 ---
 

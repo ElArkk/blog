@@ -7,6 +7,10 @@ image: /assets/img/og/red-flag-extraction-llm-eval.webp
 image_alt: "SEC 8-K evaluation illustration with red and green flags, charts, and model comparison visuals"
 categories:
   - "agentic"
+  - "machine-learning"
+  - "llm"
+  - "evaluation"
+  - "risk"
 excerpt: "A reference-free benchmark for red- and green-flag extraction from SEC 8-K filings, plus some background on running the eval on self-hosted Langfuse and keeping LLM-agent-driven eval work honest."
 ---
 

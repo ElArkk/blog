@@ -10,6 +10,7 @@ categories:
   - "postgres"
   - "python"
   - "sqlalchemy"
+  - "migrations"
 excerpt:
   "SQLAlchemy is a very mature database toolkit for Python. I am working on a
   project which uses a postgres database consisting of multiple

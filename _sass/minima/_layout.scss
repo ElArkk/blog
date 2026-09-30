@@ -351,3 +351,67 @@
     }
   }
 }
+
+
+// Expandable explanations in posts.
+.post-content details {
+  --explanation-inset: 1.1rem;
+  // Put the frame in the page gutter; keep the text at the article width.
+  margin: 1.5rem calc(0px - var(--explanation-inset) - 1px)
+          1.5rem calc(0px - var(--explanation-inset) - 4px);
+  padding: 0 var(--explanation-inset);
+
+  @include media-query($on-palm) {
+    --explanation-inset: 8px;
+  }
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-brand);
+  border-radius: 8px;
+  background: var(--color-surface);
+
+  > summary {
+    margin: 0 calc(0px - var(--explanation-inset));
+    padding: 0.9rem var(--explanation-inset);
+    border-radius: 0 7px 7px 0;
+    background: var(--color-code-bg);
+    color: var(--color-text);
+    font-weight: 600;
+    cursor: pointer;
+
+    &::marker {
+      color: var(--color-brand);
+    }
+
+    &::after {
+      content: "Expand explanation";
+      display: block;
+      margin-top: 0.2rem;
+      color: var(--color-brand);
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+
+    &:hover {
+      color: var(--color-brand);
+    }
+
+    &:focus-visible {
+      outline: 3px solid var(--color-brand);
+      outline-offset: 3px;
+    }
+  }
+
+  &[open] {
+    padding-bottom: 0.3rem;
+
+    > summary {
+      margin-bottom: 1.1rem;
+      border-bottom: 1px solid var(--color-border);
+      border-bottom-right-radius: 0;
+
+      &::after {
+        content: "Collapse explanation";
+      }
+    }
+  }
+}

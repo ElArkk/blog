@@ -1,0 +1,164 @@
+<!-- Interactive figures for the Jev probabilities post. Place <div class="jf" data-fig="..."></div> where a figure goes and include this file once, after them. Data: _data/jev_figures.json (built by blog_figures_data.py in the jev-probabilites repo). -->
+<style>
+.jf{--ink:var(--color-text);--muted:var(--color-text-muted);--rule:var(--color-border);--surface:var(--color-surface);--code:var(--color-code-bg);
+  --blue:#2a78d6;--orange:#eb6834;--violet:#4a3aa7;--grey:#8a8f98;
+  margin:28px 0;padding:16px;background:var(--surface);border:1px solid var(--rule);border-radius:6px;color:var(--ink);position:relative}
+[data-theme="dark"] .jf{--blue:#3987e5;--orange:#d95926;--violet:#9085e9;--grey:#8a8a9a}
+.jf svg{display:block;width:100%;height:auto;overflow:visible}
+.jf text{font-family:inherit;fill:currentColor}
+.jf .ax text{fill:var(--muted);font-size:12px}
+.jf .ax line,.jf .ax path{stroke:var(--rule)}
+.jf .ttl{font-weight:600;font-size:15px;margin:0 0 4px}
+.jf .sub{color:var(--muted);font-size:13.5px;margin:0 0 10px}
+.jf .ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 10px;font-size:13.5px}
+.jf button{font:inherit;font-size:13px;background:var(--surface);color:var(--ink);border:1px solid var(--muted);border-radius:4px;padding:4px 10px;cursor:pointer;min-height:32px}
+.jf button[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.jf button:focus-visible,.jf input:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.jf input[type=range]{flex:1 1 200px;accent-color:var(--blue);min-height:32px}
+.jf .legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--muted);margin-top:6px}
+.jf .legend .ln{display:inline-block;width:22px;border-top:2px solid var(--muted);margin-right:6px;vertical-align:4px}
+.jf .legend .sz{background:var(--muted);margin-right:3px!important}.jf .legend .s1{width:7px!important;height:7px!important;vertical-align:1px!important}.jf .legend .s2{width:14px!important;height:14px!important;vertical-align:-3px!important;margin-right:6px!important}
+.jf .legend i{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+.jf .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;margin-top:10px;font-size:13.5px}
+.jf .stats div{border-left:3px solid var(--c);padding:2px 0 2px 10px}
+.jf .stats b{font-variant-numeric:tabular-nums}
+.jf .tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--surface);font-size:12.5px;line-height:1.35;padding:6px 8px;border-radius:4px;white-space:nowrap;transform:translate(-50%,calc(-100% - 10px));opacity:0;transition:opacity .12s;z-index:2}
+.jf .note{color:var(--muted);font-size:12.5px;margin-top:8px}
+
+.jf.jf-map{padding:0;border:0;background:transparent}
+.jf-map .ttl{font-size:17px;margin-bottom:4px}
+.jf-map .sub{margin-bottom:4px}
+.jf-map .note{font-size:13px;line-height:1.5}
+.jf-map svg{overflow:hidden}
+
+.jf .temp-controls{margin:14px 0 16px}
+.jf .temp-presets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.jf .temp-presets button{padding:7px 3px;line-height:1.3;font-size:12px}
+.jf .temp-presets button span{display:block;font-variant-numeric:tabular-nums;font-size:11px;margin-top:3px}
+.jf .temp-scale{position:relative;height:56px}
+.jf .temp-scale svg{position:absolute;top:0;left:0;width:100%;height:40px;overflow:visible;pointer-events:none}
+.jf .temp-scale input[type=range]{position:absolute;top:24px;left:0;width:100%;height:32px;min-height:32px;margin:0;padding:0;appearance:none;-webkit-appearance:none;background:transparent;cursor:pointer}
+.jf .temp-scale input::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:var(--muted)}
+.jf .temp-scale input::-moz-range-track{height:4px;border-radius:2px;background:var(--muted)}
+.jf .temp-scale input::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:18px;height:18px;margin-top:-7px;border-radius:50%;background:var(--blue);border:2px solid var(--surface)}
+.jf .temp-scale input::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--blue);border:2px solid var(--surface)}
+.jf .temp-readout{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:11px;color:var(--muted)}
+.jf .temp-readout output{font-size:13px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+</style>
+<script type="application/json" id="jf-data">{{ site.data.jev_figures | jsonify }}</script>
+<script>
+(function(){
+const D=JSON.parse(document.getElementById("jf-data").textContent),NS="http://www.w3.org/2000/svg";
+const pct=(v,d=1)=>(v*100).toFixed(d)+"%",fmtT=t=>t>=100?Math.round(t).toLocaleString("en-US"):t>=10?t.toFixed(1):t.toFixed(2);
+function el(t,a,p){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e;}
+function txt(p,x,y,s,a){const t=el("text",Object.assign({x,y},a||{}),p);t.textContent=s;return t;}
+function h(tag,cls,html,p){const e=document.createElement(tag);if(cls)e.className=cls;if(html!=null)e.innerHTML=html;if(p)p.appendChild(e);return e;}
+function tipFor(host){const t=h("div","tip","",host);return{show(ev,html){t.innerHTML=html;const r=host.getBoundingClientRect(),b=ev.target.getBoundingClientRect();t.style.left=(b.left+b.width/2-r.left)+"px";t.style.top=(b.top-r.top)+"px";t.style.opacity=1;},hide(){t.style.opacity=0;}};}
+function hover(node,tip,html){node.style.cursor="default";node.addEventListener("pointerenter",e=>tip.show(e,html()));node.addEventListener("pointerleave",()=>tip.hide());node.setAttribute("tabindex","0");node.addEventListener("focus",e=>tip.show(e,html()));node.addEventListener("blur",()=>tip.hide());}
+function btns(p,labels,on,cb){const g=h("div","ctl","",p);const bs=labels.map((l,i)=>{const b=h("button","",l,g);b.type="button";b.setAttribute("aria-pressed",i===on);b.onclick=()=>{bs.forEach(x=>x.setAttribute("aria-pressed",x===b));cb(i);};return b;});return{g,bs};}
+function legend(p,items){h("div","legend",items.map(([c,l])=>c.startsWith("size:")?`<span><i class="sz s1"></i><i class="sz s2"></i>${l}</span>`:c.startsWith("line:")?`<span><b class="ln" style="border-top-style:${c.slice(5)}"></b>${l}</span>`:`<span><i style="background:${c}"></i>${l}</span>`).join(""),p);}
+const REF=[["line:dashed","calibrated"],["line:dotted","guessing (1 in 3)"],["size:","dot size = number of answers in the group"]];
+
+/* reliability diagram: series [{name,color,bins:[[conf,acc,n]],...}] */
+function relChart(host,x0){
+  const W=560,H=380,m={l:52,r:14,t:10,b:44},sx=v=>m.l+(v-x0)/(1-x0)*(W-m.l-m.r),sy=v=>H-m.b-v*(H-m.t-m.b);
+  const svg=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img"},host),ax=el("g",{class:"ax"},svg),tip=tipFor(host);
+  for(let v=0;v<=1.001;v+=.2){el("line",{x1:m.l,x2:W-m.r,y1:sy(v),y2:sy(v)},ax);txt(ax,m.l-8,sy(v)+4,Math.round(v*100)+"%",{"text-anchor":"end"});}
+  const step=x0<.4?[1/3,.5,.6,.7,.8,.9,1]:[.4,.5,.6,.7,.8,.9,1];
+  step.forEach(v=>{el("line",{x1:sx(v),x2:sx(v),y1:H-m.b,y2:H-m.b+5},ax);txt(ax,sx(v),H-m.b+19,Math.round(v*100)+"%",{"text-anchor":"middle"});});
+  txt(ax,(m.l+W-m.r)/2,H-6,"stated probability of the chosen answer",{"text-anchor":"middle"});
+  txt(ax,14,(m.t+H-m.b)/2,"share actually correct",{"text-anchor":"middle",transform:`rotate(-90 14 ${(m.t+H-m.b)/2})`});
+  el("line",{x1:sx(x0),y1:sy(x0),x2:sx(1),y2:sy(1),stroke:"var(--muted)","stroke-dasharray":"4 4"},svg);
+
+  el("line",{x1:sx(x0),x2:sx(1),y1:sy(1/3),y2:sy(1/3),stroke:"var(--muted)","stroke-dasharray":"1 4"},svg);
+
+  const layer=el("g",{},svg);
+  return{draw(series,minN){layer.innerHTML="";series.forEach(s=>{const b=s.bins.filter(x=>x[2]>=minN),tot=s.bins.reduce((a,x)=>a+x[2],0);
+    if(b.length>1)el("polyline",{points:b.map(x=>sx(x[0])+","+sy(x[1])).join(" "),fill:"none",stroke:s.color,"stroke-width":2.5,"stroke-linejoin":"round"},layer);
+    b.forEach(x=>{const c=el("circle",{cx:sx(x[0]),cy:sy(x[1]),r:4+10*Math.sqrt(x[2]/tot),fill:s.color,stroke:"var(--surface)","stroke-width":2},layer);
+      hover(c,tip,()=>`<b>${s.name}</b><br>${x[2].toLocaleString("en-US")} answers stated ${pct(x[0])} on average<br>${pct(x[1])} of them were correct`);});});}};
+}
+
+const F={
+temperature(host){
+  const T=D.temperature,G=T.grid,S=T.splits,iM=G.indexOf(T.T_mnli),iA=G.indexOf(T.T_anli);
+  h("p","ttl","One of my models, before and after fitting a temperature",host);
+  h("p","sub","Each dot groups answers with a similar stated probability. Click a marked temperature or drag the slider.",host);
+  const indices=[0,iM,iA],controls=h("div","temp-controls","",host),buttons=h("div","temp-presets","",controls);
+  const presets={bs:["Raw model","Fitted on MNLI","Fitted on ANLI"].map((name,k)=>{
+    const b=h("button","",`${name}<span>T = ${fmtT(G[indices[k]])}</span>`,buttons);b.type="button";
+    b.setAttribute("aria-controls","jfT");b.onclick=()=>set(indices[k]);return b;
+  })};
+  const scale=h("div","temp-scale","",controls),links=el("svg",{"aria-hidden":"true"},scale);
+  const r=h("input","","",scale);Object.assign(r,{type:"range",min:0,max:G.length-1,step:1,value:0,id:"jfT"});r.setAttribute("aria-label","Temperature");
+  const readout=h("div","temp-readout","",controls);h("span","",`T = ${fmtT(G[0])}`,readout);
+  const rv=h("output","","",readout);rv.setAttribute("for","jfT");h("span","",`T = ${fmtT(G[G.length-1])}`,readout);
+  function drawLinks(){
+    const w=scale.clientWidth||host.clientWidth||560;links.setAttribute("viewBox",`0 0 ${w} 40`);links.innerHTML="";
+    indices.forEach((index,k)=>{
+      const x=9+(w-18)*index/(G.length-1),start=(k+.5)*(w+8)/3-4,active=+r.value===index,color=active?"var(--blue)":"var(--muted)";
+      el("path",{d:`M ${start} 0 L ${start} 10 L ${x} 28 L ${x} 40`,fill:"none",stroke:color,"stroke-width":active?2:1,"stroke-opacity":active?1:.6},links);
+      el("circle",{cx:x,cy:40,r:active?4:3,fill:color},links);
+    });
+  }
+  if(typeof ResizeObserver!=="undefined")new ResizeObserver(drawLinks).observe(scale);
+  const cap=h("p","sub","",host),CAP=["<b>Raw model:</b> almost every answer states close to 100%. The model is right 89% of the time on MNLI and 34% on ANLI.",
+    "<b>Fitted on MNLI:</b> 95% of MNLI answers move onto the diagonal. The few less certain answers stay overconfident, and ANLI stays far below the diagonal.",
+    "<b>Fitted on ANLI:</b> every answer becomes about 33%. ANLI is now calibrated, but the model says nothing useful."];
+  const ch=relChart(host,1/3),stats=h("div","stats","",host);
+  legend(host,[["var(--blue)","MNLI (the training task)"],["var(--orange)","ANLI (written to fool NLI models)"],...REF]);
+  function set(i){r.value=i;rv.textContent="Selected T = "+fmtT(G[i]);r.setAttribute("aria-valuetext","Temperature "+fmtT(G[i]));drawLinks();presets.bs.forEach((b,k)=>b.setAttribute("aria-pressed",[0,iM,iA][k]===i));const pk=[0,iM,iA].indexOf(i);cap.innerHTML=pk<0?"Drag the slider to try other temperatures.":CAP[pk];
+    const M=S.matched.by_T[i],A=S.anli.by_T[i];
+    ch.draw([{name:"MNLI",color:"var(--blue)",bins:M.bins},{name:"ANLI",color:"var(--orange)",bins:A.bins}],30);
+    stats.innerHTML=[["MNLI","var(--blue)",M],["ANLI","var(--orange)",A]].map(([n,c,v])=>`<div style="--c:${c}"><b>${n}</b>: states <b>${pct(v.mean_conf)}</b> on average, right <b>${pct(v.acc)}</b>, ECE <b>${pct(v.ece)}</b></div>`).join("");}
+  r.oninput=()=>set(+r.value);set(0);
+  h("div","note",`My MNLI-trained model on ${S.matched.n.toLocaleString("en-US")} MNLI and ${S.anli.n.toLocaleString("en-US")} ANLI test examples. Both fitted temperatures give the best log score on separate held-out data; nearby values can give a slightly lower ECE on this test set. Groups with fewer than 30 answers are hidden. The temperature changes every probability but never the chosen answer, so accuracy stays fixed.`,host);
+},
+jev(host){
+  const J=D.jev;h("p","ttl","Jev 1.13: close to calibrated on MNLI, overconfident on ANLI",host);
+  h("p","sub","2,000 examples per dataset, one per premise, options in their original order. ECE is in percentage points (pp). Hover a dot for details.",host);
+  relChart(host,.4).draw([{name:"MNLI",color:"var(--blue)",bins:J.matched.bins},{name:"ANLI",color:"var(--orange)",bins:J.anli.bins}],20);
+  legend(host,[["var(--blue)","MNLI"],["var(--orange)","ANLI"],...REF]);
+  const st=h("div","stats","",host);st.innerHTML=[["MNLI","var(--blue)",J.matched],["ANLI","var(--orange)",J.anli]].map(([n,c,v])=>`<div style="--c:${c}"><b>${n}</b>: states <b>${pct(v.mean_conf)}</b> on average, right <b>${pct(v.acc)}</b>, ECE <b>${(100*v.ece).toFixed(1)} pp</b></div>`).join("");
+},
+disagreement(host){
+  host.classList.add("jf-map");
+  h("p","ttl","When the models agree, is the answer correct?",host);
+  h("p","sub","Each bar contains 100% of one answer group. Darker sections mean more disagreement.",host);
+  const colors=["#cddbec","#6b95c5","#254f80"];
+  legend(host,[[colors[0],"Low: <0.1 nats"],[colors[1],"Middle: 0.1–0.5"],[colors[2],"High: ≥0.5"]]);
+  const Q=D.disagreement.shuffled,svg=el("svg",{role:"img","aria-label":"Separate bars compare disagreement for correct and incorrect answers on MNLI, SciTail and ANLI."},host);
+  function draw(){
+    svg.innerHTML="";
+    const W=Math.max(320,Math.min(720,host.clientWidth||640)),H=386,left=81,right=10,barW=W-left-right;
+    svg.setAttribute("viewBox",`0 0 ${W} ${H}`);
+    el("title",{},svg).textContent="Disagreement within correct and incorrect answers";
+    el("desc",{},svg).textContent="Each bar sums to 100%. Light blue is less than 0.1 nats of disagreement, medium blue is 0.1 to less than 0.5, dark blue is 0.5 or more. Correct and incorrect answers occupy separate rows. Error-detection AUROC is 0.85 on MNLI, 0.69 on SciTail, and 0.43 on ANLI.";
+    [["matched","MNLI"],["scitail","SciTail"],["anli","ANLI"]].forEach(([key,name],i)=>{
+      const r=Q[key],top=26+i*124;
+      txt(svg,0,top,name,{"font-size":14,"font-weight":650});
+      txt(svg,W-right,top,`Error AUROC ${r.auroc_mi.toFixed(2)}`,{"text-anchor":"end","font-size":12});
+      [["correct","Correct"],["wrong","Incorrect"]].forEach(([group,label],j)=>{
+        const g=r.groups[group],y=top+12+j*34;
+        txt(svg,0,y+20,label,{"font-size":12});
+        let x=left;
+        g.counts.forEach((count,k)=>{
+          const share=count/g.n,w=barW*share;
+          const box=el("rect",{x,y,width:w,height:28,fill:colors[k],stroke:"var(--surface)","stroke-width":1},svg);
+          el("title",{},box).textContent=`${name}, ${label.toLowerCase()}: ${pct(share)} in ${["low","middle","high"][k]} disagreement band (${count.toLocaleString("en-US")} of ${g.n.toLocaleString("en-US")} answers)`;
+          if(w>=31){const t=txt(svg,x+w/2,y+19,pct(share,0),{"text-anchor":"middle","font-size":12,"font-weight":600});t.setAttribute("style",`fill:${k===2?"#fff":"#132d4d"}`);}
+          x+=w;
+        });
+      });
+    });
+  }
+  draw();
+  if(typeof ResizeObserver!=="undefined")new ResizeObserver(draw).observe(host);
+  h("p","note","The same 3 MNLI-trained models, with shuffled options. These 3 bands summarise the distributions; they aren't fitted decision thresholds. AUROC uses every original score, including differences within bands; 0.50 means chance. Disagreement uses raw 3-class probabilities. Correctness uses the calibrated ensemble, with 2 classes for SciTail.",host);
+}
+
+
+};
+document.querySelectorAll(".jf[data-fig]").forEach(n=>{try{F[n.dataset.fig](n);}catch(e){console.error("jev figure",n.dataset.fig,e);}});
+})();
+</script>

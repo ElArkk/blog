@@ -1,0 +1,247 @@
+<!-- Animated walk through Laya's forward pass for Choice, Score and Noul questions. Ported from the jev-probabilites explainer. -->
+<style>
+.fp{--surface:var(--color-surface);--ink:var(--color-text);--ink-2:var(--color-grey-dark);--muted:var(--color-text-muted);--rule:var(--color-border);--code-bg:var(--color-code-bg);--bg:var(--color-background);
+  --epi:#2a78d6;--c-mv:#eda100;--c-ds:#4a3aa7;--c-dsx:#1baf7a;
+  margin:28px 0;padding:16px;background:var(--surface);border:1px solid var(--rule);border-radius:6px;color:var(--ink)}
+[data-theme="dark"] .fp{--epi:#3987e5;--c-mv:#c98500;--c-ds:#9085e9;--c-dsx:#199e70}
+.fp svg{display:block;width:100%;height:auto;color:var(--ink);min-width:640px}
+.fp .fp-scroll{overflow-x:auto}
+.fp .t{transition:opacity .5s ease,transform .8s cubic-bezier(.2,.7,.2,1),fill .6s ease}
+.fp button{font-family:SFMono-Regular,Menlo,monospace;font-size:.8rem;background:var(--surface);color:var(--ink);border:1px solid var(--muted);border-radius:4px;padding:6px 12px;cursor:pointer;min-height:34px}
+.fp button:hover{background:var(--code-bg)}
+.fp button[aria-pressed="true"],.fp .fp-dots button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.fp button:focus-visible{outline:2px solid var(--epi);outline-offset:2px}
+.fp-top{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;margin-bottom:6px}
+.fp-types{display:flex;gap:8px}
+.fp-example{font-size:.85rem;color:var(--ink-2);flex:1 1 320px}
+.fp-zoom{margin-left:auto}
+.fp.fp-big{position:fixed;inset:0;z-index:1000;margin:0;border-radius:0;overflow:auto;padding:16px 24px}
+.fp.fp-big svg{min-width:0;max-height:calc(100vh - 290px);margin:0 auto}
+.fp-panel{display:grid;gap:10px;margin-top:8px}
+.fp-nav{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.fp-nav button:disabled{opacity:.4;cursor:default}
+.fp-dots{display:flex;flex-wrap:wrap;gap:6px;margin-left:auto}
+.fp .fp-dots button{width:30px;min-height:30px;padding:0;border-radius:50%;font-size:.74rem}
+.fp-caption{min-height:8.5em;border-left:3px solid var(--epi);padding:4px 0 4px 14px}
+.fp-eyebrow{font-family:SFMono-Regular,Menlo,monospace;font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.fp-caption h4{font-size:1.05rem;margin:2px 0 4px}
+.fp-caption p{margin:.3em 0;font-size:.95rem}
+@media (prefers-reduced-motion:reduce){.fp .t{transition:none}}
+</style>
+<figure class="fp" id="fp">
+  <div class="fp-top">
+    <div class="fp-types" role="group" aria-label="Question type">
+      <button type="button" data-fptype="choice" aria-pressed="true">Choice</button>
+      <button type="button" data-fptype="score" aria-pressed="false">Score</button>
+      <button type="button" data-fptype="noul" aria-pressed="false">Noul</button>
+    </div>
+    <div class="fp-example" id="fpExample" aria-live="polite"></div>
+    <button type="button" class="fp-zoom" id="fpZoom" aria-pressed="false">⤢ Enlarge</button>
+  </div>
+  <div class="fp-scroll">
+    <svg id="fpSvg" viewBox="0 0 920 630" role="img" aria-label="Animated walk through Laya's forward pass"></svg>
+  </div>
+  <div class="fp-panel">
+    <div class="fp-nav">
+      <button type="button" id="fpPrev" aria-label="Previous step">◀ Back</button>
+      <button type="button" id="fpPlay" aria-label="Play all steps">▶ Play</button>
+      <button type="button" id="fpNext" aria-label="Next step">Next ▶</button>
+      <div class="fp-dots" id="fpDots" role="group" aria-label="Jump to step"></div>
+    </div>
+    <div class="fp-caption" id="fpCaption" aria-live="polite"></div>
+  </div>
+</figure>
+<script>
+/* ---------- animated forward pass ---------- */
+(function(){
+const NS="http://www.w3.org/2000/svg",$=id=>document.getElementById(id);
+const svg=$("fpSvg");if(!svg)return;
+const RM=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;
+function el(t,a,p){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);(p||svg).appendChild(e);return e;}
+function tx(p,x,y,s,a){const t=el("text",Object.assign({x,y,"font-family":"SF Mono, SFMono-Regular, Menlo, monospace","font-size":11,fill:"currentColor"},a||{}),p);t.textContent=s;return t;}
+function css(e,o){for(const k in o)e.style[k]=o[k];}
+function hash(s){let h=2166136261;for(const c of s){h^=c.charCodeAt(0);h=Math.imul(h,16777619);}return ((h>>>0)%1000)/1000;}
+const EX={
+ choice:{name:"Choice",color:"var(--c-ds)",
+  q:"What is the relation between the premise and the hypothesis?",
+  st:'{"premise": "A man plays guitar on stage.", "hypothesis": "Someone makes music."}',
+  opts:["entailment","neutral","contradiction"],z:[4.1,1.2,-2.3],T:1.4,
+  tok:[["[CLS]","h"],["choice","h"],["relation?","h"],["[SEP]","h"],["[MASK]","m",0],["entail","o"],["[MASK]","m",1],["neutral","o"],["[MASK]","m",2],["contradict","o"],["[SEP]","h"],["man","s"],["plays","s"],["guitar","s"],["|","s"],["someone","s"],["makes","s"],["music","s"],["[SEP]","s"]]},
+ score:{name:"Score",color:"var(--c-mv)",
+  q:"How urgent is this request?",
+  st:'"Our payment server is down and customers cannot pay."',
+  opts:["level 0: calm","level 1: soon","level 2: critical"],z:[-1.5,0.9,2.2],T:1.3,
+  tok:[["[CLS]","h"],["score","h"],["how urgent?","h"],["[SEP]","h"],["[MASK]","m",0],["0 calm","o"],["[MASK]","m",1],["1 soon","o"],["[MASK]","m",2],["2 critical","o"],["[SEP]","h"],["payment","s"],["server","s"],["down,","s"],["customers","s"],["can't","s"],["pay","s"],["[SEP]","s"]]},
+ noul:{name:"Noul",color:"var(--c-dsx)",
+  q:"Does the customer ask for a refund?",
+  st:'"I was charged twice. Please send my money back."',
+  opts:["false","true"],z:[-1.8,2.6],T:1.2,
+  tok:[["[CLS]","h"],["noul","h"],["refund asked?","h"],["[SEP]","h"],["[MASK]","m",0],["false","o"],["[MASK]","m",1],["true","o"],["[SEP]","h"],["charged","s"],["twice.","s"],["please","s"],["send","s"],["money","s"],["back","s"],["[SEP]","s"]]}
+};
+const W=920,KMAX=4,SX=[250,410,570,730],CELL=7,NCELL=6,CW=12;
+const Y={tokL:18,tok:40,vecL:92,vec:104,slotL:176,slot:190,scL:268,sc:280,zL:326,zBase:382,pL:434,pBase:520,aL:548,ans:572};
+const Y_H=630,CHIP_H=26,LOGIT_SCALE=9,PROB_H=74;
+const ROWS=[["tok","TOKENS",0],["vec","VECTORS · 1,024 numbers per token (6 drawn)",1],["slot","OPTION SLOTS · only the [MASK] vectors",4],["sc","SHARED SCORER",5],["z","LOGITS z",5],["p","PROBABILITIES p",6],["a","ANSWER",7]];
+const STEPS=["Build one sequence","Encoder","Add the type vector","Two head layers","Keep the [MASK] slots","Shared scorer","Divide by T, softmax","Read the answer"];
+let type="choice",step=0,G={},timer=null;
+svg.setAttribute("viewBox",`0 0 ${W} ${Y_H}`);
+
+function softmax(z,T){const m=Math.max(...z),e=z.map(v=>Math.exp((v-m)/T)),s=e.reduce((a,b)=>a+b,0);return e.map(v=>v/s);}
+function vals(){const E=EX[type],p=softmax(E.z,E.T),K=p.length,pm=Math.max(...p),H=-p.reduce((a,v)=>a+v*Math.log(v),0);
+  return {p,K,pm,arg:p.indexOf(pm),conf:type==="noul"?Math.max(p[1],1-p[1]):1-H/Math.log(K),E:p.reduce((a,v,k)=>a+k*v,0)};}
+
+function build(){
+  svg.innerHTML="";const E=EX[type],V=vals();G={chips:[],cols:[],cells:[],slots:[],ghosts:[],logit:[],prob:[],rows:{}};
+  const defs=el("defs",{});const gr=el("linearGradient",{id:"fpSweep",x1:"0",x2:"1"},defs);
+  [["0","0"],["0.5","0.5"],["1","0"]].forEach(([o,a])=>el("stop",{offset:o,"stop-color":"#3987e5","stop-opacity":a},gr));
+  /* row rail */
+  ROWS.forEach(([k,label])=>{const y=Y[k+"L"]||Y[k==="tok"?"tokL":k+"L"];const t=tx(svg,10,(k==="z"?Y.zL:k==="p"?Y.pL:k==="a"?Y.aL:k==="sc"?Y.scL:k==="slot"?Y.slotL:k==="vec"?Y.vecL:Y.tokL),label,{"font-size":10,"letter-spacing":"0.06em",class:"t"});G.rows[k]=t;});
+  /* tokens */
+  const ws=E.tok.map(t=>6.3*t[0].length+12),gap=4,total=ws.reduce((a,b)=>a+b,0)+gap*(ws.length-1),sc=Math.min(1,(W-20)/total);
+  let x=(W-total*sc)/2;const cx=[];
+  G.arcs=el("g",{});
+  E.tok.forEach((t,i)=>{const w=ws[i]*sc,kind=t[1];cx.push(x+w/2);
+    const g=el("g",{class:"t"});
+    const fill=kind==="m"?"var(--epi)":kind==="s"?"var(--surface)":"var(--code-bg)";
+    el("rect",{x,y:Y.tok,width:w,height:CHIP_H,rx:4,fill,stroke:kind==="m"?"var(--epi)":"var(--rule)","stroke-width":1.2},g);
+    tx(g,x+w/2,Y.tok+17,t[0],{"text-anchor":"middle","font-size":10.5*Math.max(sc,.85),fill:kind==="m"?"#fff":kind==="h"?"var(--muted)":"currentColor"});
+    G.chips.push({g,kind,slot:t[2]});x+=w+gap*sc;});
+  G.cx=cx;
+  /* budget brackets (step 1) */
+  G.brackets=el("g",{class:"t"});
+  const hEnd=E.tok.findIndex((t,i)=>i>0&&t[0]==="[SEP]"&&E.tok[i-1][1]==="o"),x0=cx[0]-ws[0]*sc/2,x1=cx[hEnd]+ws[hEnd]*sc/2,x2=cx[cx.length-1]+ws[ws.length-1]*sc/2;
+  [[x0,x1,"question + options: ≤ 192 tokens"],[x1+4,x2,"state: the rest (≤ 512 in total)"]].forEach(([a,b,t])=>{
+    el("path",{d:`M${a},${Y.tok+CHIP_H+6} v6 H${b} v-6`,fill:"none",stroke:"var(--muted)"},G.brackets);
+    tx(G.brackets,(a+b)/2,Y.tok+CHIP_H+26,t,{"text-anchor":"middle","font-size":10.5,fill:"var(--muted)"});});
+  /* vectors */
+  E.tok.forEach((t,i)=>{const g=el("g",{class:"t"});css(g,{transform:`translate(${cx[i]-CW/2}px,${Y.vec}px)`});const cs=[];
+    for(let r=0;r<NCELL;r++)cs.push(el("rect",{x:0,y:r*(CELL+2),width:CW,height:CELL,rx:1.5,class:"t"},g));
+    G.cols.push(g);G.cells.push(cs);});
+  G.band=el("g",{class:"t"});el("rect",{x:cx[0]-14,y:Y.vec-6,width:cx[cx.length-1]-cx[0]+28,height:NCELL*(CELL+2)+10,rx:6,fill:E.color,"fill-opacity":.16,stroke:E.color,"stroke-dasharray":"4 3"},G.band);
+  tx(G.band,cx[cx.length-1]+14,Y.vec-10,"+ e_"+type,{"font-size":12,"font-weight":700,fill:E.color,"text-anchor":"end"});
+  G.sweep=el("rect",{x:0,y:Y.tok-4,width:46,height:Y.vec+NCELL*(CELL+2)-Y.tok+8,fill:"url(#fpSweep)",opacity:0});
+  G.note=tx(svg,W-10,Y.vecL,"",{"text-anchor":"end","font-size":10.5,fill:"var(--ink-2)",class:"t"});
+  /* slots */
+  for(let k=0;k<KMAX;k++){const real=k<V.K,sxk=SX[k];
+    const g=el("g",{class:"t"});
+    if(real)tx(g,sxk,Y.slot+NCELL*(CELL+2)+18,E.opts[k],{"text-anchor":"middle","font-size":11.5,"font-weight":600});
+    else{el("rect",{x:sxk-30,y:Y.slot-6,width:60,height:NCELL*(CELL+2)+10,rx:5,fill:"none",stroke:"var(--muted)","stroke-dasharray":"4 3"},g);
+      tx(g,sxk,Y.slot+NCELL*(CELL+2)+18,"padding",{"text-anchor":"middle","font-size":11,fill:"var(--muted)"});}
+    (real?G.slots:G.ghosts).push(g);}
+  /* scorer */
+  G.scorer=el("g",{class:"t"});el("rect",{x:SX[0]-70,y:Y.sc,width:SX[KMAX-1]-SX[0]+140,height:28,rx:6,fill:"var(--code-bg)",stroke:"var(--epi)","stroke-width":1.5},G.scorer);
+  tx(G.scorer,(SX[0]+SX[KMAX-1])/2,Y.sc+18,"LayerNorm → Linear → GELU → Linear → 1 number   (same weights for every slot)",{"text-anchor":"middle","font-size":10.5});
+  /* logit row */
+  G.axisL=el("g",{class:"t"});el("line",{x1:SX[0]-70,x2:SX[KMAX-1]+70,y1:Y.zBase,y2:Y.zBase,stroke:"currentColor","stroke-opacity":.45},G.axisL);tx(G.axisL,SX[0]-76,Y.zBase+4,"0",{"text-anchor":"end","font-size":10,fill:"var(--muted)"});
+  /* prob row */
+  G.axisP=el("g",{class:"t"});[0,.5,1].forEach(v=>{const y=Y.pBase-v*PROB_H;el("line",{x1:SX[0]-70,x2:SX[KMAX-1]+70,y1:y,y2:y,stroke:"currentColor","stroke-opacity":v===0?.45:.12,"stroke-dasharray":v===0?"":"3 3"},G.axisP);tx(G.axisP,SX[0]-76,y+4,String(v),{"text-anchor":"end","font-size":10,fill:"var(--muted)"});});
+  for(let k=0;k<KMAX;k++){const real=k<V.K,sxk=SX[k];
+    const gl=el("g",{class:"t"});
+    if(real){const z=E.z[k],h=Math.abs(z)*LOGIT_SCALE,r=el("rect",{x:sxk-16,y:z>=0?Y.zBase-h:Y.zBase,width:32,height:h,rx:3,fill:"var(--epi)",class:"t"},gl);
+      r.style.transformOrigin=`${sxk}px ${Y.zBase}px`;tx(gl,sxk+22,z>=0?Y.zBase-h/2+4:Y.zBase+h/2+4,"z = "+z.toFixed(1),{"font-size":11});gl.bar=r;}
+    else tx(gl,sxk,Y.zBase-8,"z = −10,000",{"text-anchor":"middle","font-size":10.5,fill:"var(--muted)"});
+    G.logit.push(gl);
+    const gp=el("g",{class:"t"}),p=real?V.p[k]:0,h=Math.max(p*PROB_H,real?1.5:0),win=real&&k===V.arg&&type!=="score";
+    const r=el("rect",{x:sxk-16,y:Y.pBase-h,width:32,height:h,rx:3,fill:real?E.color:"var(--muted)",class:"t"},gp);r.style.transformOrigin=`${sxk}px ${Y.pBase}px`;gp.bar=r;
+    tx(gp,sxk,Y.pBase-h-6,real?(p*100).toFixed(1)+"%":"0%",{"text-anchor":"middle","font-size":11.5,"font-weight":700});
+    if(real){gp.zt=tx(gp,sxk,Y.pBase+14,"z/T = "+(E.z[k]/E.T).toFixed(2),{"text-anchor":"middle","font-size":9.5,fill:"var(--muted)",class:"t"});
+      if(type==="score"){gp.ct=tx(gp,sxk,Y.pBase+16,`${k} × ${p.toFixed(3)} = ${(k*p).toFixed(3)}`,{"text-anchor":"middle","font-size":11,"font-weight":700,fill:k===0?"var(--muted)":"currentColor",class:"t"});}}
+    G.prob.push(gp);gp.win=win;}
+  /* winner mark */
+  if(type!=="score"){G.winner=el("rect",{x:SX[V.arg]-22,y:Y.pBase-V.pm*PROB_H-2,width:44,height:V.pm*PROB_H+2,rx:4,fill:"none",stroke:"var(--ink)","stroke-width":2.5,class:"t"});}
+  /* answer row */
+  G.out=el("g",{class:"t"});
+  if(type==="score"){const a=SX[0],b=SX[2],y=Y.ans+10,u=(b-a)/2;
+    el("line",{x1:a,x2:b,y1:y,y2:y,stroke:"currentColor","stroke-opacity":.5},G.out);
+    [0,1,2].forEach(k=>{el("line",{x1:SX[k],x2:SX[k],y1:y-4,y2:y+4,stroke:"currentColor","stroke-opacity":.6},G.out);tx(G.out,SX[k],y+17,"level "+k,{"text-anchor":"middle","font-size":10,fill:"var(--muted)"});});
+    let acc=0;const shades=["var(--muted)","color-mix(in srgb, "+E.color+" 55%, var(--surface))",E.color];
+    V.p.forEach((pk,k)=>{const c=k*pk,x=a+acc*u,w=c*u;
+      if(k>0){el("rect",{x,y:y-14,width:Math.max(w,1),height:12,rx:2,fill:shades[k]},G.out);}
+      acc+=c;});
+    G.marker=el("path",{d:`M0,-7 L7,5 L-7,5 Z`,fill:"var(--ink)",class:"t"},G.out);G.markerX=a+V.E*u;G.markerA=a;
+    tx(G.out,a,y+36,`bar = the products stacked: 0 (level 0) + ${(V.p[1]).toFixed(3)} (level 1) + ${(2*V.p[2]).toFixed(3)} (level 2); the triangle marks the score`,{"font-size":10.5,fill:"var(--ink-2)"});
+    tx(G.out,SX[3]-50,y-2,`score = ${V.p.map((pk,k)=>k+"×"+pk.toFixed(3)).join(" + ")}`,{"font-size":11});
+    tx(G.out,SX[3]-50,y+16,`      = ${V.E.toFixed(2)}`,{"font-size":13,"font-weight":700});}
+  else if(type==="noul"){const a=SX[0],b=SX[2],y=Y.ans-8;el("rect",{x:a,y,width:b-a,height:14,rx:7,fill:"var(--code-bg)"},G.out);
+    G.gauge=el("rect",{x:a,y,width:(b-a)*V.p[1],height:14,rx:7,fill:E.color,class:"t"},G.out);G.gauge.style.transformOrigin=`${a}px ${y}px`;
+    tx(G.out,a-8,y+11,"0",{"text-anchor":"end","font-size":10,fill:"var(--muted)"});tx(G.out,b+8,y+11,"1",{"font-size":10,fill:"var(--muted)"});
+    tx(G.out,SX[3]-40,y+11,`noul = p(true) = ${V.p[1].toFixed(3)}`,{"font-size":12.5,"font-weight":700});}
+  else{tx(G.out,SX[0]-70,Y.ans+4,`choice = "${E.opts[V.arg]}"`,{"font-size":12.5,"font-weight":700});
+    tx(G.out,SX[2]-40,Y.ans+4,`answer_confidence = ${V.pm.toFixed(3)} · confidence = ${V.conf.toFixed(3)}`,{"font-size":11,fill:"var(--ink-2)"});}
+  $("fpExample").innerHTML=`<b>${E.name}</b> · question: “${E.q}” · options: ${E.opts.map(o=>`<code>${o}</code>`).join(" ")} · state: ${E.st.replace(/</g,"&lt;")}`;
+  svg.setAttribute("aria-label",`Animated forward pass for a ${E.name} question`);
+}
+
+function cellFill(i,r,stage){const E=EX[type],v=hash(type+i+"-"+r+"-"+stage);
+  const base=stage===1?"var(--epi)":E.color;return `color-mix(in srgb, ${base} ${Math.round(18+72*v)}%, var(--surface))`;}
+
+function arcs(set){G.arcs.innerHTML="";const E=EX[type],cx=G.cx,m=[],others=[];
+  E.tok.forEach((t,i)=>{if(t[1]==="m")m.push(i);else if(t[0]!=="[CLS]")others.push(i);});
+  const pairs=set===1?others.map(o=>[m[0],o]):(()=>{const r=[];for(let j=0;j<m.length;j++)for(let k=j+1;k<m.length;k++)r.push([m[j],m[k]]);return r;})();
+  pairs.forEach(([a,b],n)=>{const x1=cx[a],x2=cx[b],hgt=Math.min(26,6+Math.abs(x2-x1)*.09);
+    const p=el("path",{d:`M${x1},${Y.tok} C${x1},${Y.tok-hgt} ${x2},${Y.tok-hgt} ${x2},${Y.tok}`,fill:"none",stroke:set===1?"var(--epi)":EX[type].color,"stroke-width":set===1?1.2:2,"stroke-opacity":.85},G.arcs);
+    if(RM)return;const L=p.getTotalLength();p.style.strokeDasharray=L;p.style.strokeDashoffset=L;
+    p.animate([{strokeDashoffset:L},{strokeDashoffset:0}],{duration:600,delay:150+n*45,fill:"forwards",easing:"ease-out"});});}
+
+function sweep(){if(RM)return;G.sweep.animate([{transform:"translateX(0px)",opacity:0},{opacity:1,offset:.12},{opacity:1,offset:.88},{transform:`translateX(${W-40}px)`,opacity:0}],{duration:1500,easing:"ease-in-out"});}
+
+function apply(s,animate){
+  const V=vals(),dly=animate&&!RM;
+  ROWS.forEach(([k,,from])=>{const t=G.rows[k],act=(k==="tok"&&s===0)||(k==="vec"&&s>=1&&s<=3)||(k==="slot"&&s===4)||(k==="sc"&&s===5)||(k==="z"&&s===5)||(k==="p"&&s===6)||(k==="a"&&s===7);
+    t.style.fill=act?"var(--ink)":"var(--muted)";t.style.fontWeight=act?"700":"400";t.style.opacity=s>=from?1:.35;});
+  G.chips.forEach((c,i)=>css(c.g,{opacity:s>=4&&c.kind!=="m"?.25:1,transitionDelay:dly&&s===0?`${i*40}ms`:"0ms"}));
+  css(G.brackets,{opacity:s===0?1:0});
+  G.cols.forEach((g,i)=>{const c=G.chips[i],m=c.kind==="m";
+    const pos=s>=4&&m?`translate(${SX[c.slot]-CW/2}px,${Y.slot}px)`:`translate(${G.cx[i]-CW/2}px,${Y.vec}px)`;
+    css(g,{opacity:s===0?0:(s>=4&&!m?0:1),transform:pos,transitionDelay:dly&&s===1?`${i*30}ms`:(dly&&s===4&&m?`${c.slot*120}ms`:"0ms")});
+    const stage=s<=1?1:(s===2?2:3);G.cells[i].forEach(r=>{r.style.fill=cellFill(i,G.cells[i].indexOf(r),stage);r.style.transitionDelay=dly&&s===2?`${i*25}ms`:"0ms";});});
+  css(G.band,{opacity:s===2?1:0});
+  G.note.textContent=s===1?"arcs: what the first [MASK] slot attends to":s===3?"arcs: the option slots compare with each other":"";
+  G.slots.forEach(g=>css(g,{opacity:s>=4?1:0}));G.ghosts.forEach(g=>css(g,{opacity:s>=4?.8:0}));
+  css(G.scorer,{opacity:s>=5?(s===5?1:.4):0});
+  css(G.axisL,{opacity:s>=5?(s===5?1:.4):0});css(G.axisP,{opacity:s>=6?1:0});
+  G.logit.forEach((g,k)=>{css(g,{opacity:s>=5?(s===5?1:.4):0,transitionDelay:dly&&s===5?`${k*220}ms`:"0ms"});if(g.bar)css(g.bar,{transform:s>=5?"scaleY(1)":"scaleY(0)",transitionDelay:dly&&s===5?`${k*220}ms`:"0ms"});});
+  G.prob.forEach((g,k)=>{css(g,{opacity:s>=6?1:0,transitionDelay:dly&&s===6?`${k*160}ms`:"0ms"});css(g.bar,{transform:s>=6?"scaleY(1)":"scaleY(0)",transitionDelay:dly&&s===6?`${k*160}ms`:"0ms"});});
+  G.prob.forEach(g=>{if(g.zt)g.zt.style.opacity=(type==="score"&&s===7)?0:1;if(g.ct)g.ct.style.opacity=s===7?1:0;});
+  if(G.winner)css(G.winner,{opacity:s===7?1:0});
+  css(G.out,{opacity:s===7?1:0});
+  if(G.marker)css(G.marker,{transform:`translate(${s===7?G.markerX:G.markerA}px,${Y.ans+14}px)`,transitionDelay:dly?"250ms":"0ms"});
+  if(G.gauge)css(G.gauge,{transform:s===7?"scaleX(1)":"scaleX(0)",transitionDelay:dly?"250ms":"0ms"});
+  if(s===1){arcs(1);if(animate)sweep();}else if(s===3){arcs(3);if(animate)sweep();}else G.arcs.innerHTML="";
+  caption(s,V);
+  [...$("fpDots").children].forEach((b,i)=>{b.setAttribute("aria-current",i===s?"step":"false");b.classList.toggle("on",i===s);});
+  $("fpPrev").disabled=s===0;$("fpNext").disabled=s===STEPS.length-1;
+}
+function caption(s,V){const E=EX[type],t=type,f=v=>v.toFixed(3);
+  const txt=[
+   `The state and the question become <strong>one token sequence for this question alone</strong>. Each option starts with a <code>[MASK]</code> token (blue). That token becomes the option's "slot". A second question would get its own sequence with the whole state again.`,
+   `ModernBERT-large (28 layers) reads the whole sequence in both directions. The arcs show attention from the first <code>[MASK]</code> slot: it looks at the question, the other options and the state. Every token does the same. Out comes one vector of 1,024 numbers per token (the columns; 6 cells are drawn).`,
+   `A learned vector for the question type, <i>e</i><sub>${t}</sub>, is added to <strong>every</strong> token vector: <i>h<sub>i</sub></i> ← <i>h<sub>i</sub></i> + <i>e</i><sub>${t}</sub>. This is the only place where the network is told "this is a ${E.name}". Choice, Score and Noul share every other weight.`,
+   `Two new transformer layers (16 heads, width 1,024) run over all tokens once more. The arcs show the option slots comparing themselves with each other. The encoder is general; these 2 layers are trained for decisions.`,
+   `Only the ${V.K} vectors at the <code>[MASK]</code> positions are kept, one per option. The other token vectors are dropped. In a batch, questions have different numbers of options, so every question is padded to the largest one (here 4). The dashed slots are that padding.`,
+   `The <strong>same</strong> small network scores every slot and returns one number, the logit <i>z<sub>k</sub></i>. Because the weights are shared, the options can be any text and any number. Padding slots get <i>z</i> = −10,000, so they can never win.`,
+   `Each logit is divided by the temperature <i>T</i> = ${E.T} (one per question type and number of options), then the softmax turns them into probabilities that sum to 1: <i>p<sub>k</sub></i> = e<sup><i>z<sub>k</sub></i>/<i>T</i></sup> / Σ<sub><i>j</i></sub> e<sup><i>z<sub>j</sub></i>/<i>T</i></sup>. Padding slots get exactly 0.`,
+   t==="choice"?`<strong>Choice:</strong> the answer is the option with the largest probability, "${E.opts[V.arg]}". <code>answer_confidence</code> = <i>p</i><sub>max</sub> = ${f(V.pm)}, the number calibration is about. <code>confidence</code> = 1 − <i>H</i>(<i>p</i>) / log <i>K</i> = ${f(V.conf)} measures how concentrated the distribution is.`
+   :t==="score"?`<strong>Score:</strong> the levels are ordered, so the answer is the <em>expected level</em>: multiply each level by its probability and add up. score = 0 × ${V.p[0].toFixed(3)} + 1 × ${V.p[1].toFixed(3)} + 2 × ${V.p[2].toFixed(3)} = ${V.E.toFixed(2)}. Level 0 adds nothing to the sum, but every bit of probability on it is taken from levels 1 and 2, so it pulls the score down. Ask 1,000 times: ${Math.round(V.p[0]*1000)} answers say 0, ${Math.round(V.p[1]*1000)} say 1, ${Math.round(V.p[2]*1000)} say 2; their average is ${V.E.toFixed(2)}.`
+   :`<strong>Noul:</strong> the 2 slots are always "false" then "true". The answer is <i>p</i>(true) = ${f(V.p[1])}. Here <code>confidence</code> = max(<i>p</i>, 1 − <i>p</i>) = ${f(V.conf)}, the same as <code>answer_confidence</code>, which differs from Choice and Score.`];
+  $("fpCaption").innerHTML=`<div class="fp-eyebrow">Step ${s+1} of ${STEPS.length} · ${E.name}</div><h4>${STEPS[s]}</h4><p>${txt[s]}</p>`;
+}
+
+function go(s,animate=true){step=Math.max(0,Math.min(STEPS.length-1,s));apply(step,animate);}
+function stop(){if(timer){clearInterval(timer);timer=null;$("fpPlay").textContent="▶ Play";$("fpPlay").setAttribute("aria-label","Play all steps");}}
+STEPS.forEach((n,i)=>{const b=document.createElement("button");b.type="button";b.textContent=i+1;b.title=n;b.setAttribute("aria-label",`Step ${i+1}: ${n}`);b.addEventListener("click",()=>{stop();go(i);});$("fpDots").appendChild(b);});
+$("fpPrev").addEventListener("click",()=>{stop();go(step-1);});
+$("fpNext").addEventListener("click",()=>{stop();go(step+1);});
+$("fpPlay").addEventListener("click",()=>{if(timer){stop();return;}
+  if(step===STEPS.length-1)go(0);$("fpPlay").textContent="❚❚ Pause";$("fpPlay").setAttribute("aria-label","Pause");
+  timer=setInterval(()=>{if(step>=STEPS.length-1){stop();return;}go(step+1);},3400);});
+document.querySelectorAll("[data-fptype]").forEach(b=>b.addEventListener("click",()=>{stop();type=b.dataset.fptype;
+  document.querySelectorAll("[data-fptype]").forEach(x=>x.setAttribute("aria-pressed",x===b));build();
+  const s=step;apply(0,false);requestAnimationFrame(()=>requestAnimationFrame(()=>go(s,true)));}));
+$("fp").addEventListener("keydown",e=>{if(e.target.closest("button")&&(e.key==="ArrowRight"||e.key==="ArrowLeft")){stop();go(step+(e.key==="ArrowRight"?1:-1));e.preventDefault();}});
+function zoom(on){$("fp").classList.toggle("fp-big",on);document.body.style.overflow=on?"hidden":"";const b=$("fpZoom");b.setAttribute("aria-pressed",on);b.textContent=on?"✕ Close":"⤢ Enlarge";}
+$("fpZoom").addEventListener("click",()=>zoom(!$("fp").classList.contains("fp-big")));
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&$("fp").classList.contains("fp-big"))zoom(false);});
+build();go(0,false);
+})();
+</script>

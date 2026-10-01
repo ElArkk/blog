@@ -310,6 +310,12 @@ I then tried 2 ways to identify mistakes in those chosen answers:
 
 For example, if each model is certain about a different answer, each has zero entropy, but their average assigns 1/3 to every answer. All the uncertainty in that average comes from disagreement. If all 3 models already assign 1/3 to every answer, averaging adds no uncertainty, so disagreement is zero.
 
+To compare the 2 scores, I kept the ensemble's chosen answers fixed and marked each as correct or incorrect using the test labels. Each answer then had 2 error scores: 1 minus its answer probability, and its disagreement score. For both, a higher value means a stronger warning of an error.
+
+I calculated AUROC separately for each score, using the same correct and incorrect answers. For every pair containing one incorrect answer and one correct answer, the score earns 1 if it ranks the incorrect answer higher, 0.5 for a tie, and 0 if it ranks the correct answer higher. AUROC is the average across those pairs.
+
+An AUROC of 0.85 therefore means the score puts the incorrect answer first in 85% of these comparisons, counting ties as half. It doesn't mean 85% of answers are correct. Because AUROC uses the ranking, we can compare the probability-based score with disagreement in nats without converting their units.
+
 Using the ensemble's answer probability gave slightly higher AUROC on all 3 datasets. The gaps were small, and the SciTail gap was uncertain when I resampled the test data. On ANLI, both scores ranked errors worse than chance, so the small advantage didn't make either a useful warning signal there.
 
 There is a reason to expect answer probability to work well. If all 3 models give each option a probability of 1/3, they have zero disagreement, but their chosen answer still has only 1/3 probability. Disagreement misses uncertainty that the models share.

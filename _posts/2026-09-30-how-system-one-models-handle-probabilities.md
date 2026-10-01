@@ -305,8 +305,10 @@ The second comparison used the same ensemble in both cases. For each option, I a
 
 I then tried 2 ways to identify mistakes in those chosen answers:
 
-- **Use the ensemble's answer probability.** Treat an answer as more likely to be wrong when the ensemble assigns it a lower probability. This applies the standard [answer-probability baseline](https://arxiv.org/abs/1610.02136) to the ensemble.
-- **Use disagreement between the models.** Treat an answer as more likely to be wrong when the 3 models give different probability distributions.
+- **Use the ensemble's answer probability.** The error score is **1 minus the probability assigned to its chosen answer**: an answer given 90% probability gets a score of 0.10. Higher scores flag answers as more likely to be wrong. This applies the standard [answer-probability baseline](https://arxiv.org/abs/1610.02136) to the ensemble.
+- **Use disagreement between the models.** First, calculate entropy, a measure of how spread out the probabilities are, for each model and average those 3 entropy values. Then calculate the entropy of the models' average probability distribution and subtract the first value. This measures how much extra uncertainty appears when we combine their different predictions, using probabilities before temperature fitting.
+
+For example, if each model is certain about a different answer, each has zero entropy, but their average assigns 1/3 to every answer. All the uncertainty in that average comes from disagreement. If all 3 models already assign 1/3 to every answer, averaging adds no uncertainty, so disagreement is zero.
 
 Using the ensemble's answer probability gave slightly higher AUROC on all 3 datasets. The gaps were small, and the SciTail gap was uncertain when I resampled the test data. On ANLI, both scores ranked errors worse than chance, so the small advantage didn't make either a useful warning signal there.
 

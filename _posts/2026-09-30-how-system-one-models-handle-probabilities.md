@@ -21,7 +21,7 @@ What interests me about Jev is the possibility of using the same model for many 
 
 This reminds me of tabular foundation models such as [TabPFN](https://www.nature.com/articles/s41586-024-08328-6): one pretrained model can serve many prediction tasks. TabPFN uses labelled rows from a new table as context; Jev takes a question, criteria and state. The analogy is about reusing a trained predictor across tasks, rather than a shared architecture or training method.
 
-I see Jev's promise in making that generality practical through a fast API built around typed decisions and probabilities. That also makes probability quality central: the same API can serve many tasks, but we still need to know what its numbers mean on each one.
+I see Jev's promise in making that generality practical through a fast API built around typed decisions and probabilities. Given how quickly LLMs have improved, I'd expect the capabilities of models like Jev to improve rapidly too. That also makes probability quality central: the same API can serve many tasks, but we still need to know what its numbers mean on each one.
 
 My question was how much we can trust those probabilities. My work in biology and, more recently, in a risk startup has made me interested in how we measure uncertainty and decide when we need more evidence.
 
@@ -258,73 +258,54 @@ With the MNLI-fitted temperatures, accuracy rose from 89.0% for the single model
 
 ## Can the ensemble identify its mistakes?
 
-The ensemble improved some predictions. I also wanted to know whether its members' disagreement could identify the answers that still needed human review. Better average predictions and better error detection are separate benefits.
+I compared 2 error scores for the same ensemble answers. Higher values flag answers as more likely to be wrong:
 
-Disagreement is measured in nats, a unit of information: 0 means all 3 models assign identical probabilities, while the maximum of about 1.1 means each model is certain about a different answer.
+- **Answer probability:** $$1-p_{\text{answer}}$$, where $$p_{\text{answer}}$$ is the probability assigned to the ensemble's chosen answer after averaging and temperature fitting.
+- **Disagreement:** the entropy of the models' average prediction minus the average entropy of their individual predictions. This measures the extra uncertainty from combining different predictions, using probabilities before temperature fitting.
 
 <details markdown="1">
-<summary>How disagreement is calculated</summary>
+<summary>The disagreement formula</summary>
 
-I measured disagreement by comparing the uncertainty in the average prediction with the average uncertainty of the individual models. For the 3 models, the formula is:
+This is *ensemble mutual information*, also called generalized Jensen–Shannon divergence, a [standard measure of model disagreement](https://torch-uncertainty.github.io/generated/torch_uncertainty.metrics.classification.MutualInformation.html).
 
-$$
-D = H(\bar p) - \frac{H(p_1) + H(p_2) + H(p_3)}{3},
-\qquad
-\bar p = \frac{p_1+p_2+p_3}{3}.
-$$
-
-Here, $$p_i$$ is model $$i$$'s probability distribution over the options, and $$\bar p$$ is their average. $$H$$ is entropy, which measures how spread out a probability distribution is:
+For the 3 models' probability distributions $$p_1,p_2,p_3$$:
 
 $$
-H(p) = -\sum_c p_c\ln(p_c).
+\bar p=\frac{p_1+p_2+p_3}{3}.
 $$
 
-The sum runs over the answer options; a zero-probability option contributes 0. Because the formula uses the natural logarithm, $$\ln$$, its unit is **nats**. The disagreement score is a measure of information, not a probability of being wrong.
+$$
+S_{\text{disagreement}}=
+\underbrace{H(\bar p)}_{\text{entropy of the average prediction}}
+-
+\underbrace{\frac{H(p_1)+H(p_2)+H(p_3)}{3}}_{\text{average entropy of individual predictions}}.
+$$
 
-If all 3 models give identical probabilities, $$D=0$$, even if each model is uncertain. If each model is certain about a different answer, their average is spread evenly over the 3 options and $$D=\ln(3)\approx1.10$$ nats, the maximum here.
+Entropy measures how spread out the probabilities are:
 
-I calculated this score from the models' probabilities before temperature fitting.
+$$
+H(p)=-\sum_c p_c\ln p_c,
+$$
+
+where $$c$$ runs over the answer options. Using natural logarithms gives the score in nats: 0 means identical probability distributions, and the maximum of about 1.1 means each model is certain about a different answer.
 
 </details>
 
-Each pair of bars below compares correct and incorrect ensemble answers. Darker sections mean more disagreement; a useful error signal would give the incorrect-answer bar a larger dark section.
+I calculated **AUROC separately for each score**: how often it ranks an incorrect answer above a correct answer, counting ties as half. A value of 0.50 means chance; 1 means perfect separation.
 
-<div class="jf" data-fig="disagreement"></div>
+| Dataset | Disagreement AUROC | Answer-probability error score AUROC |
+| --- | ---: | ---: |
+| MNLI | 0.846 | 0.854 |
+| SciTail | 0.685 | 0.692 |
+| ANLI | 0.429 | 0.444 |
 
-On MNLI, incorrect answers tend to have more disagreement. On ANLI, the pattern reverses: the models often agree on a wrong answer.
+The ensemble's answer probability worked slightly better on all 3 datasets, although the SciTail gap was uncertain when I resampled the test data. Both scores helped identify errors on MNLI and SciTail; neither gave a useful ranking on ANLI, where our models already had chance-level accuracy.
 
-AUROC measures how often a randomly chosen incorrect answer has more disagreement than a randomly chosen correct answer, with ties counting half. It's 0.85 on MNLI, 0.69 on SciTail and 0.43 on ANLI; 0.50 means chance.
+Disagreement can miss uncertainty shared by all the models. The ensemble's answer probability captures that too, which helps explain why disagreement may not be the better error score. Calculating either score still requires all 3 models.
 
-Disagreement identified errors better on the datasets where the ensemble was more accurate: MNLI, then SciTail, then ANLI. A plausible explanation is that the models learned useful patterns on MNLI but shared more of their mistakes on unfamiliar inputs.
+If the ensemble knew the true answer probabilities, its chance of a mistake would be exactly $$1-p_{\text{answer}}$$. Ranking by that error probability is optimal for selecting answers to accept ([Franc et al., 2023](https://www.jmlr.org/papers/v24/21-0048.html)); low ECE alone doesn't establish that the estimated probabilities meet this condition.
 
-Higher accuracy alone doesn't guarantee better error detection from disagreement. Even highly accurate models can agree on every mistake, giving disagreement no way to separate correct and incorrect answers. ANLI's chance-level accuracy was already clear; this comparison asks whether disagreement could flag its errors, and here it couldn't.
-
-There are 2 comparisons here. First, I compared using 1 model with using all 3 models together. Averaging their predictions improved log loss, as shown above.
-
-The second comparison used the same ensemble in both cases. For each option, I averaged the probability assigned by each of the 3 models, then applied the fitted temperature. The ensemble chose the option with the largest resulting probability.
-
-I then tried 2 ways to identify mistakes in those chosen answers:
-
-- **Use the ensemble's answer probability.** The error score is **1 minus the probability assigned to its chosen answer**: an answer given 90% probability gets a score of 0.10. Higher scores flag answers as more likely to be wrong. This applies the standard [answer-probability baseline](https://arxiv.org/abs/1610.02136) to the ensemble.
-- **Use disagreement between the models.** First, calculate entropy, a measure of how spread out the probabilities are, for each model and average those 3 entropy values. Then calculate the entropy of the models' average probability distribution and subtract the first value. This measures how much extra uncertainty appears when we combine their different predictions, using probabilities before temperature fitting.
-
-For example, if each model is certain about a different answer, each has zero entropy, but their average assigns 1/3 to every answer. All the uncertainty in that average comes from disagreement. If all 3 models already assign 1/3 to every answer, averaging adds no uncertainty, so disagreement is zero.
-
-To compare the 2 scores, I kept the ensemble's chosen answers fixed and marked each as correct or incorrect using the test labels. Each answer then had 2 error scores: 1 minus its answer probability, and its disagreement score. For both, a higher value means a stronger warning of an error.
-
-I calculated AUROC separately for each score, using the same correct and incorrect answers. For every pair containing one incorrect answer and one correct answer, the score earns 1 if it ranks the incorrect answer higher, 0.5 for a tie, and 0 if it ranks the correct answer higher. AUROC is the average across those pairs.
-
-An AUROC of 0.85 therefore means the score puts the incorrect answer first in 85% of these comparisons, counting ties as half. It doesn't mean 85% of answers are correct. Because AUROC uses the ranking, we can compare the probability-based score with disagreement in nats without converting their units.
-
-Using the ensemble's answer probability gave slightly higher AUROC on all 3 datasets. The gaps were small, and the SciTail gap was uncertain when I resampled the test data. On ANLI, both scores ranked errors worse than chance, so the small advantage didn't make either a useful warning signal there.
-
-There is a reason to expect answer probability to work well. If all 3 models give each option a probability of 1/3, they have zero disagreement, but their chosen answer still has only 1/3 probability. Disagreement misses uncertainty that the models share.
-
-If the ensemble knew the true answer probabilities for each input, the chance of a mistake would be exactly 1 minus the probability of its chosen answer. Ranking by that error probability is optimal for selecting which answers to accept ([Franc et al., 2023](https://www.jmlr.org/papers/v24/21-0048.html)). Real model probabilities are estimates; a low ECE alone doesn't establish this stronger condition.
-
-The comparison is therefore worth testing, but the outcome isn't surprising. [Jaeger et al. (2023)](https://arxiv.org/abs/2211.15259) also found no general advantage for entropy-based uncertainty scores over averaged answer probability in their image-classification study, which used Monte Carlo dropout. Our result supports the ensemble's combined prediction as an error score; calculating it still requires all 3 models.
-
-The models share a pretrained encoder and training data, so they can share weaknesses that disagreement doesn't reveal. [Gleave and Irving](https://arxiv.org/abs/2203.07472) also found a weak relationship between ensemble uncertainty and error in language reward models, using different measures, and suggested shared pretraining as a possible cause.
+[Jaeger et al. (2023)](https://arxiv.org/abs/2211.15259) also found no general advantage for entropy-based scores over averaged answer probability in an image-classification study using Monte Carlo dropout. [Gleave and Irving](https://arxiv.org/abs/2203.07472) found a weak relationship between ensemble uncertainty and error in language reward models, and suggested shared pretraining as a possible cause.
 
 ## What these results mean
 
@@ -336,7 +317,7 @@ The ensemble also gave useful signals for identifying errors on those datasets. 
 
 Getting that ensemble required open weights, labelled training data and several fine-tuning runs, followed by running several models for each prediction. Jev makes the first prediction much easier to obtain; an open model gives me more control over how to improve it. Averaging shuffled Jev requests is an accessible option, but our tests found little change in answer accuracy.
 
-This brings me back to the question that interests me in biology and risk: when does the evidence justify acting? For Jev's promised automation, I'd want to know how often the answers my software accepts are wrong, measured on its actual workload. That measured error rate, together with the cost of a mistake, is what would determine how much authority I'd give it.
+This brings me back to the question that interests me in biology and risk: when does the evidence justify acting? For Jev's promised automation, I'd want to know how often the answers my software accepts are wrong, measured on its actual workload. That measured error rate, together with the cost of a mistake, would determine how much authority I'd give Jev, or whether I'd be better off training my own classifier.
 
 <!-- links: code repo, interactive explainer, results -->
 

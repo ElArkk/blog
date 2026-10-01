@@ -123,21 +123,30 @@ jev(host){
 },
 disagreement(host){
   host.classList.add("jf-map");
-  h("p","ttl","When the models agree, is the answer correct?",host);
-  h("p","sub","Each bar contains 100% of one answer group. Darker sections mean more disagreement.",host);
+  let mode=0;
+  const title=h("p","ttl","",host);
+  btns(host,["Disagreement","Answer probability"],0,i=>{mode=i;draw();});
+  const subtitle=h("p","sub","",host);
   const colors=["#cddbec","#6b95c5","#254f80"];
-  legend(host,[[colors[0],"Low: <0.1 nats"],[colors[1],"Middle: 0.1–0.5"],[colors[2],"High: ≥0.5"]]);
-  const Q=D.disagreement.shuffled,svg=el("svg",{role:"img","aria-label":"Separate bars compare disagreement for correct and incorrect answers on MNLI, SciTail and ANLI."},host);
+  const keyHost=h("div","","",host);
+  const svg=el("svg",{role:"img"},host),note=h("p","note","",host);
   function draw(){
+    const probability=mode===1,Q=probability?D.probability_preview:D.disagreement.shuffled;
+    const bands=probability?["≥90% probability","70% to <90% probability","<70% probability"]:["<0.1 nats","0.1 to <0.5 nats","≥0.5 nats"];
+    title.textContent=probability?"Does a higher answer probability mean the answer is correct?":"When the models agree, is the answer correct?";
+    subtitle.textContent="Each bar contains 100% of one answer group. Darker sections mean "+(probability?"a lower probability for the chosen answer.":"more disagreement.");
+    keyHost.innerHTML="";legend(keyHost,bands.map((label,i)=>[colors[i],label]));
+    note.textContent=(probability?"Probabilities are averaged across the 3 models, then adjusted with the MNLI-fitted temperature. AUROC ranks errors using 1 − answer probability.":"Disagreement uses the 3 models' raw probability distributions. AUROC ranks errors using disagreement.")+" Both views use the same correct and incorrect answers, with 2 classes for SciTail. Bands are for display only; AUROC uses the full scores. An AUROC of 0.50 means chance.";
+    svg.setAttribute("aria-label",title.textContent);
     svg.innerHTML="";
     const W=Math.max(320,Math.min(720,host.clientWidth||640)),H=386,left=81,right=10,barW=W-left-right;
     svg.setAttribute("viewBox",`0 0 ${W} ${H}`);
-    el("title",{},svg).textContent="Disagreement within correct and incorrect answers";
-    el("desc",{},svg).textContent="Each bar sums to 100%. Light blue is less than 0.1 nats of disagreement, medium blue is 0.1 to less than 0.5, dark blue is 0.5 or more. Correct and incorrect answers occupy separate rows. Error-detection AUROC is 0.85 on MNLI, 0.69 on SciTail, and 0.43 on ANLI.";
+    el("title",{},svg).textContent=title.textContent;
+    el("desc",{},svg).textContent=subtitle.textContent+" Bands from light to dark: "+bands.join(", ")+". Correct and incorrect answers occupy separate rows for MNLI, SciTail and ANLI.";
     [["matched","MNLI"],["scitail","SciTail"],["anli","ANLI"]].forEach(([key,name],i)=>{
       const r=Q[key],top=26+i*124;
       txt(svg,0,top,name,{"font-size":14,"font-weight":650});
-      txt(svg,W-right,top,`Error AUROC ${r.auroc_mi.toFixed(2)}`,{"text-anchor":"end","font-size":12});
+      txt(svg,W-right,top,`${probability?"Probability":"Disagreement"} AUROC ${(probability?r.auroc_pmax:r.auroc_mi).toFixed(2)}`,{"text-anchor":"end","font-size":12});
       [["correct","Correct"],["wrong","Incorrect"]].forEach(([group,label],j)=>{
         const g=r.groups[group],y=top+12+j*34;
         txt(svg,0,y+20,label,{"font-size":12});
@@ -145,7 +154,7 @@ disagreement(host){
         g.counts.forEach((count,k)=>{
           const share=count/g.n,w=barW*share;
           const box=el("rect",{x,y,width:w,height:28,fill:colors[k],stroke:"var(--surface)","stroke-width":1},svg);
-          el("title",{},box).textContent=`${name}, ${label.toLowerCase()}: ${pct(share)} in ${["low","middle","high"][k]} disagreement band (${count.toLocaleString("en-US")} of ${g.n.toLocaleString("en-US")} answers)`;
+          el("title",{},box).textContent=`${name}, ${label.toLowerCase()}: ${pct(share)} in ${bands[k]} band (${count.toLocaleString("en-US")} of ${g.n.toLocaleString("en-US")} answers)`;
           if(w>=31){const t=txt(svg,x+w/2,y+19,pct(share,0),{"text-anchor":"middle","font-size":12,"font-weight":600});t.setAttribute("style",`fill:${k===2?"#fff":"#132d4d"}`);}
           x+=w;
         });
@@ -154,7 +163,6 @@ disagreement(host){
   }
   draw();
   if(typeof ResizeObserver!=="undefined")new ResizeObserver(draw).observe(host);
-  h("p","note","The same 3 MNLI-trained models, with shuffled options. These 3 bands summarise the distributions; they aren't fitted decision thresholds. AUROC uses every original score, including differences within bands; 0.50 means chance. Disagreement uses raw 3-class probabilities. Correctness uses the calibrated ensemble, with 2 classes for SciTail.",host);
 }
 
 

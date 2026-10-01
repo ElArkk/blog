@@ -21,7 +21,7 @@ What interests me about Jev is the possibility of using the same model for many 
 
 This reminds me of tabular foundation models such as [TabPFN](https://www.nature.com/articles/s41586-024-08328-6): one pretrained model can serve many prediction tasks. TabPFN uses labelled rows from a new table as context; Jev takes a question, criteria and state. The analogy is about reusing a trained predictor across tasks, rather than a shared architecture or training method.
 
-I see Jev's promise in making that generality practical through a fast API built around typed decisions and probabilities. Given how quickly LLMs have improved, I'd expect the capabilities of models like Jev to improve rapidly too. That also makes probability quality central: the same API can serve many tasks, but we still need to know what its numbers mean on each one.
+I see Jev's promise in making that generality practical through a fast API built around typed decisions and probabilities. Given how quickly LLMs have improved, I'd expect the capabilities of models like Jev to improve rapidly too. That makes calibration central: the same API can serve many tasks, but we still need to check whether its stated probabilities match observed accuracy on each one.
 
 My question was how much we can trust those probabilities. My work in biology and, more recently, in a risk startup has made me interested in how we measure uncertainty and decide when we need more evidence.
 
@@ -95,7 +95,7 @@ Laya gives the 50/50 answer more confidence than the second row. Neither `confid
 
 TypeSafe trains Jev with a method it calls RLCD, reinforcement learning for calibrated decisions. Laya's open version uses the same name for its own recipe.
 
-Rewarding the correct choice alone doesn't teach probability quality: the model could always assign 99% to its chosen answer without an extra penalty for overconfidence.
+Rewarding the correct choice alone doesn't teach the model to match its stated confidence to how often it's right: it could always assign 99% to its chosen answer without an extra penalty for overconfidence.
 
 A **proper scoring rule** scores the probabilities themselves: reporting the true distribution gives the best expected score. Laya uses the log of the probability assigned to the correct answer, which penalizes confident mistakes strongly.
 
@@ -105,14 +105,14 @@ Suppose tickets saying "I was charged twice" turn out to be billing problems 70%
 | --- | --- | --- | --- | --- |
 | Average log score | −0.69 | −0.61 | −0.76 | −1.39 |
 
-Higher is better. The corresponding error measure, log loss, reverses the sign, so lower is better. This objective encourages accurate probabilities even when each training example has only 1 label; it doesn't guarantee calibration on new data.
+Higher is better. The corresponding error measure, log loss, reverses the sign, so lower is better. This objective encourages the reported distribution to match the true answer distribution, even when each training example has only 1 label. It doesn't guarantee calibration on new data.
 
 <details markdown="1">
-<summary>The math: why the log score rewards accurate probabilities</summary>
+<summary>The math: why the log score rewards reporting the true distribution</summary>
 
 #### Proper scoring rules
 
-A scoring rule measures how good a prediction was. The model states probabilities $$q$$ for the options, the correct answer $$y$$ is revealed, and the rule returns a score:
+A scoring rule evaluates the probability distribution reported for an observed outcome. The model states probabilities $$q$$ for the options, the correct answer $$y$$ is revealed, and the rule returns a score:
 
 $$
 S(q, y)
@@ -170,13 +170,13 @@ It reaches its maximum at $$q = 0.7$$. Reporting 0.9 scores better on billing ti
 <details markdown="1">
 <summary>How Laya adds reinforcement learning</summary>
 
-Laya combines the log-score objective with a reinforcement-learning term that scores small random changes to the logits. Both use probability quality as the training signal.
+Laya combines the log-score objective with a reinforcement-learning term that scores small random changes to the logits. Both score the probability assigned to the correct answer, rather than just whether the model chose it.
 
 For each training example, Laya makes several copies of the model's logits with a little random noise added. It converts each copy into probabilities and evaluates them with a proper scoring rule.
 
 Copies that score above the group's average count as good moves, and training shifts the logits toward them. This is the "RL" in Laya's RLCD recipe.
 
-The reward favors accurate probability reports, but adding noise and estimating updates introduces another optimization step. Using a proper reward alone doesn't establish that this procedure will recover the true probabilities.
+The reward favors reporting the true answer distribution, but adding noise and estimating updates introduces another optimization step. Using a proper reward alone doesn't establish that this procedure will recover the true probabilities.
 
 </details>
 
@@ -208,15 +208,11 @@ The figure compares raw probabilities with temperatures fitted on separate label
 
 Temperature fitting left every chosen answer unchanged on both datasets. Fitting the temperature on labelled MNLI examples reduced log loss on separate MNLI test examples from 1.69 to 0.39, with no change in accuracy.
 
-On ANLI, accuracy stayed near chance at 34%. Applying the MNLI-fitted temperature made the model less certain about its mistakes, which reduced log loss from 10.39 to 1.85. It still assigned its chosen answers an average probability of 84%, leaving ECE at about 51 percentage points.
-
-With 3 possible answers, random guessing would be correct about 1/3 of the time, close to this model's 34% accuracy on ANLI. Fitting the temperature on separate labelled ANLI examples gave a very high value, about 1,200.
-
-Dividing the logits by such a large number makes them nearly equal, so softmax assigns about 1/3 probability to each answer. ECE fell below 1 percentage point because those probabilities matched the model's chance-level accuracy, while its chosen answers stayed unchanged.
+On ANLI, the model was near chance at 34% accuracy. Fitting the temperature on separate labelled ANLI examples gave a value of about 1,200, pushing each answer's probability towards 1/3: the probabilities now reflected that the model was effectively guessing, without improving its answers.
 
 Temperature fitting changed how the model reported its uncertainty. It didn't teach the model to answer more questions correctly or resolve missing information in the input.
 
-A calibrated model can still be uncertain, and still make many mistakes. Better probabilities can nevertheless help software decide which answers to accept and which to send for review.
+A calibrated model can still be uncertain, and still make many mistakes. When stated probabilities match observed accuracy, software can use them to estimate the error rate among accepted answers.
 
 ### How well did Jev report its uncertainty?
 
@@ -226,11 +222,11 @@ I first used the same option order for every example. On MNLI, the probability J
 
 <div class="jf" data-fig="jev"></div>
 
-On ANLI, Jev assigned 90% to 99% probability to answers that were correct only 81.9% of the time. Their average stated probability was 94.9%, so Jev overstated its accuracy in this group by 13 percentage points. Other [independent Jev tests](https://github.com/AbdelStark/jev-benchmarks#pilot-result) also report probability quality that varies by task.
+On ANLI, Jev assigned 90% to 99% probability to answers that were correct only 81.9% of the time. Their average stated probability was 94.9%, so Jev overstated its accuracy in this group by 13 percentage points. Other [independent Jev tests](https://github.com/AbdelStark/jev-benchmarks#pilot-result) also report that calibration varies by task.
 
 ## Can averaging improve the decisions?
 
-If calibration makes the probabilities more accurate without fixing the answers, what can improve the answers themselves? I tried 2 forms of averaging: changing the option order for the same model, and combining separately trained models. The first varies the presentation; the second varies the learned model.
+Temperature fitting can bring stated probabilities closer to observed accuracy without changing the chosen answers. Can averaging also increase the number of correct answers? I tried 2 forms of averaging: changing the option order for the same model, and combining separately trained models. The first varies the presentation; the second varies the learned model.
 
 ### Average over shuffled option orders
 
@@ -240,27 +236,31 @@ Option-order sensitivity has been documented in LLMs ([Pezeshkpour and Hruschka,
 
 Averaging the probabilities across all 6 orders reduced log loss from 0.433 to 0.402 on MNLI and from 0.794 to 0.739 on ANLI. ECE fell from 3.5 to 3.0 percentage points on MNLI and from 10.3 to 9.9 on ANLI.
 
-The chosen answers were about as accurate after averaging: roughly 87% on MNLI and 73% on ANLI. Here, the gain was in the probability report, with little change in overall accuracy.
+The chosen answers were about as accurate after averaging: roughly 87% on MNLI and 73% on ANLI. The small reductions in log loss and ECE came with almost no change in answer accuracy.
 
 ### Average over separately trained models
 
-Could averaging separately trained models help more? [Jev doesn't offer customer fine-tuning](https://docs.typesafe.ai/models#customizing-jev), so I used the open setup: 3 models trained on the same 100,000 MNLI examples, with different random seeds and shuffled option orders during training. The temperature experiment above used one of these models.
+I used a 3-model ensemble as a first step to test whether averaging separately trained models could improve accuracy, calibration, or both. [Jev doesn't offer customer fine-tuning](https://docs.typesafe.ai/models#customizing-jev), so I used the open setup: 3 models trained on the same 100,000 MNLI examples, with different random seeds and shuffled option orders during training. The temperature experiment above used one of these models.
 
 Models trained from different random starts can make different errors, which averaging may reduce. This is the established [deep ensemble approach](https://proceedings.neurips.cc/paper/2017/hash/9ef2ed4b7fd2c810847ffa5fa85bce38-Abstract.html). I compared a single model with the average of the 3 models trained with shuffled options.
+
+A Bayesian approach would average predictions from weight settings sampled from their posterior distribution, which represents uncertainty about the weights after seeing the training data. [Izmailov et al. (2021)](https://proceedings.mlr.press/v139/izmailov21a.html) found that deep ensembles could approximate this average, although their predictions still differed from those obtained through posterior sampling.
+
+In that study, posterior sampling improved accuracy and log loss over deep ensembles on the main image and text benchmarks, but required substantial computation. Our 3-model ensemble tests a much simpler approach to combining different learned solutions; posterior sampling is outside the scope of this post.
 
 Alongside MNLI, I tested [SciTail](https://huggingface.co/datasets/allenai/scitail): does a web sentence support a statement built from a science exam question and answer? It has 2 labels, support or no support.
 
 With temperatures fitted separately for the single model and the ensemble on held-out MNLI data, averaging lowered log loss from 0.39 to 0.33 on MNLI and from 0.49 to 0.46 on SciTail. Refitting temperatures on 50 labelled SciTail examples also left the ensemble ahead: median SciTail log loss was 0.454 for the single model and 0.428 for the ensemble across 10 random calibration samples.
 
-With the MNLI-fitted temperatures, accuracy rose from 89.0% for the single model to 89.5% for the ensemble on MNLI, and from 82.6% to 83.5% on SciTail. Averaging different models can change the chosen answer, so it can improve the decision itself as well as the probabilities. The ensemble still performed near chance on ANLI.
+With the MNLI-fitted temperatures, accuracy rose from 89.0% for the single model to 89.5% for the ensemble on MNLI, and from 82.6% to 83.5% on SciTail. Here, averaging produced more correct answers as well as lower log loss. The ensemble still performed near chance on ANLI.
 
 > Training note: I first trained models with a fixed option order. Changing option order during testing then reduced one model's MNLI accuracy from 88.7% to 39.1%, which suggests it relied on option position. The ensemble results use models trained with shuffled option orders.
 
 ## Can the ensemble identify its mistakes?
 
-I compared 2 error scores for the same ensemble answers. Higher values flag answers as more likely to be wrong:
+Averaging improved accuracy and log loss on MNLI and SciTail. Does the ensemble also make it easier to identify mistakes than a single model? I compared the single model's answer probability with 2 scores from the ensemble:
 
-- **Answer probability:** $$1-p_{\text{answer}}$$, where $$p_{\text{answer}}$$ is the probability assigned to the ensemble's chosen answer after averaging and temperature fitting.
+- **Answer probability, for either system:** $$1-p_{\text{answer}}$$, where $$p_{\text{answer}}$$ is the probability assigned to that system's chosen answer. For the ensemble, I averaged the models' probabilities before temperature fitting; both systems used temperatures fitted on MNLI.
 - **Disagreement:** the entropy of the models' average prediction minus the average entropy of their individual predictions. This measures the extra uncertainty from combining different predictions, using probabilities before temperature fitting.
 
 <details markdown="1">
@@ -291,15 +291,21 @@ where $$c$$ runs over the answer options. Using natural logarithms gives the sco
 
 </details>
 
-I calculated **AUROC separately for each score**: how often it ranks an incorrect answer above a correct answer, counting ties as half. A value of 0.50 means chance; 1 means perfect separation.
+I calculated **AUROC separately for each score**: how often it ranks an incorrect answer above a correct answer, counting ties as half. A value of 0.50 means chance; 1 means perfect separation. The single-model score detects the single model's errors; both ensemble scores detect the ensemble's errors, on the same test examples.
 
-| Dataset | Disagreement AUROC | Answer-probability error score AUROC |
-| --- | ---: | ---: |
-| MNLI | 0.846 | 0.854 |
-| SciTail | 0.685 | 0.692 |
-| ANLI | 0.429 | 0.444 |
+| Dataset | Single-model probability AUROC | Ensemble probability AUROC | Ensemble disagreement AUROC |
+| --- | ---: | ---: | ---: |
+| MNLI | 0.834 | 0.854 | 0.846 |
+| SciTail | 0.664 | 0.692 | 0.685 |
+| ANLI | 0.458 | 0.444 | 0.429 |
 
-The ensemble's answer probability worked slightly better on all 3 datasets, although the SciTail gap was uncertain when I resampled the test data. Both scores helped identify errors on MNLI and SciTail; neither gave a useful ranking on ANLI, where our models already had chance-level accuracy.
+The ensemble's answer probability identified errors better than the single model's on MNLI and SciTail. Those gains also held in a paired bootstrap of test-example groups, with the trained models fixed. On ANLI, where both systems had chance-level accuracy, none of the scores gave a useful error ranking.
+
+The chart separates correct and incorrect ensemble answers. Use the buttons to compare model disagreement with the probability assigned to the chosen answer. Darker bands mean more disagreement or a lower answer probability.
+
+<div class="jf" data-fig="disagreement"></div>
+
+On MNLI and SciTail, incorrect answers tend to have more disagreement. On ANLI, that relationship reverses. Disagreement is a useful warning on the first 2 datasets, but the table shows that the ensemble's answer probability works slightly better; the gap between those 2 ensemble scores on SciTail was uncertain when I resampled the test data.
 
 Disagreement can miss uncertainty shared by all the models. The ensemble's answer probability captures that too, which helps explain why disagreement may not be the better error score. Calculating either score still requires all 3 models.
 
@@ -311,13 +317,15 @@ If the ensemble knew the true answer probabilities, its chance of a mistake woul
 
 Jev's appeal is the prospect of using one model for many decisions, with the question and possible answers defined in each request. That brings the CEO's proposed software layer within reach: developers can add a prediction to an application without first building a separate classifier. The probabilities then become part of how the application decides when to act.
 
-The tests helped me separate improving those probability reports from improving the answers. Temperature fitting adjusted how certain a model sounded without changing its choices, and averaging Jev's shuffled inputs mostly improved its probabilities. Averaging separately trained models improved both log loss and accuracy on MNLI and SciTail.
+The tests separated 3 outcomes: choosing more correct answers, matching stated probabilities to observed accuracy, and identifying likely mistakes. Temperature fitting adjusted how certain a model sounded without changing its choices. Averaging Jev's predictions across shuffled option orders slightly reduced log loss and calibration error on both datasets, with almost no change in accuracy. Averaging separately trained models improved both log loss and accuracy on MNLI and SciTail.
 
-The ensemble also gave useful signals for identifying errors on those datasets. Its answer probability worked at least as well as disagreement between its members, so the combined prediction was the most useful output in this comparison. Agreement alone could still hide mistakes shared by all the models.
+The ensemble also identified its errors better than the single model on MNLI and SciTail when using answer probability as the error score. Disagreement helped flag mistakes too, but the ensemble's answer probability worked slightly better. Agreement alone could still hide mistakes shared by all the models.
 
-Getting that ensemble required open weights, labelled training data and several fine-tuning runs, followed by running several models for each prediction. Jev makes the first prediction much easier to obtain; an open model gives me more control over how to improve it. Averaging shuffled Jev requests is an accessible option, but our tests found little change in answer accuracy.
+Averaging across option orders required 6 Jev calls per question for small reductions in log loss and calibration error, with almost no change in accuracy. The ensemble required 3 fine-tuning runs and 3 model evaluations per question, but increased accuracy and improved error detection on MNLI and SciTail. Whether those gains justify the added compute depends on the workload and the cost of mistakes.
 
-This brings me back to the question that interests me in biology and risk: when does the evidence justify acting? For Jev's promised automation, I'd want to know how often the answers my software accepts are wrong, measured on its actual workload. That measured error rate, together with the cost of a mistake, would determine how much authority I'd give Jev, or whether I'd be better off training my own classifier.
+A probability should help us decide how much to trust an answer. These tests show why that takes more than checking accuracy: a model can choose the right answer often and still overstate its certainty, or be well calibrated while doing little better than guessing.
+
+To act on its probabilities, we need to know both how often it is right and how confidently it is wrong.
 
 <!-- links: code repo, interactive explainer, results -->
 
